@@ -1865,26 +1865,16 @@ do
 		end)
 
 		if not ok or not API_Dump then
-				warn("[DEBUG] API Dump failed, fetching latest version automatically...")
-				local currentVersion = game:HttpGet("https://setup.roproxy.com/versionStudio")
-				
-				if currentVersion and currentVersion:match("^version%-") then
-					warn("[DEBUG] Found latest Roblox Studio version: " .. currentVersion)
-					local fetchUrl = "https://raw.githubusercontent.com/setup-rbxcdn/build-archive/master/data/production/builds/" .. currentVersion .. "/Full-API-Dump.json"
-					
-					local downloadOk, downloadResult = pcall(function()
-						return game:HttpGet(fetchUrl, true)
-					end)
-					
-					if downloadOk then
-						API_Dump = service.HttpService:JSONEncode(
-							service.HttpService:JSONDecode(downloadResult).Classes
-						)
-					else
-						warn("[DEBUG] Failed to download Full-API-Dump for " .. currentVersion)
-					end
-				end
-			end
+			warn("[DEBUG] Failed to get automatic version, switching to fallback API Dump..")
+			API_Dump = service.HttpService:JSONEncode(
+				service.HttpService:JSONDecode(
+					game:HttpGet(
+						"https://raw.githubusercontent.com/setup-rbxcdn/build-archive/master/data/production/builds/version-3da9d00a092c4d59/Full-API-Dump.json",
+						true
+					)
+				).Classes
+			)
+		end
 
 		local classList = {}
 
