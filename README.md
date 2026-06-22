@@ -6,7 +6,7 @@ A script for Roblox executors that converts the game you are in to a file you ca
 
 ```lua
 local Params = {
- RepoURL = "https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/",
+ RepoURL = "https://raw.githubusercontent.com/ledutuu/BetterSaveinstance/refs/heads/main/", 
  SSI = "saveinstance",
 }
 local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
