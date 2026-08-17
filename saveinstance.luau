@@ -129,7 +129,7 @@ do -- * Load Region of Déjà Vu
 		pcall(function()
 			local b64_enc_buf = loadstring(
 				game:HttpGet(
-					"https://raw.githubusercontent.com/daily3014/rbx-cryptography/refs/heads/main/src/Utilities/Base64.luau",
+					"https://raw.githubusercontent.com/daily3014/rbx-algorithms/refs/heads/main/src/Encoding/Base64.luau",
 					true
 				),
 				"Base64"
