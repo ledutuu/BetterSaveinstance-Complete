@@ -2280,7 +2280,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 		SaveCompilationErrors = true,
 		IgnoreProperties = {},
 
-		IgnoreList = { "CoreGui", "CorePackages" },
+		IgnoreList = { "CoreGui", "CorePackages", Packages = false },
 		SaveAsAttributes = false,
 		ExtraInstances = {},
 		NilInstances = false,
@@ -3450,9 +3450,13 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 				do
 					local OnIgnoredList = IgnoreList[ClassName]
-					if OnIgnoredList and (OnIgnoredList == true or OnIgnoredList[InstanceName]) then
-						continue
-					end
+if OnIgnoredList ~= nil then
+    if OnIgnoredList == false then
+        SkipEntirely = false
+    elseif OnIgnoredList == true or OnIgnoredList[InstanceName] then
+        continue
+    end
+end
 				end
 
 				if not DecompileIgnoring then
