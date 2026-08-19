@@ -4648,36 +4648,45 @@ end
 
 		if NilInstances and global_container.getnilinstances then
 			local nil_instances, nil_instances_size = {}, 1
-
 			local NilInstancesFixes = OPTIONS.NilInstancesFixes
+			local all_nil_instances = global_container.getnilinstances()
+			local nil_instance_set = setmetatable({}, { __mode = "k" })
+			local root_seen = setmetatable({}, { __mode = "k" })
 
-			for _, instance in global_container.getnilinstances() do
-				if instance == game then
-					instance = nil
-					-- break
-				else
+			-- getnilinstances() commonly returns both an unparented root and every
+			-- descendant below it. Saving every result as a root serializes the same
+			-- subtree repeatedly and produces duplicate referents. Build a set of
+			-- savable candidates first, then only emit instances whose parent is not
+			-- another candidate. Descendants are saved once through save_hierarchy().
+			for _, instance in all_nil_instances do
+				if instance ~= game then
+					local Class = ClassList[instance.ClassName]
+					if not (Class and Class.Service) then
+						nil_instance_set[instance] = true
+					end
+				end
+			end
+
+			for _, original_instance in all_nil_instances do
+				if
+					nil_instance_set[original_instance]
+					and not nil_instance_set[original_instance.Parent]
+					and not root_seen[original_instance]
+				then
+					root_seen[original_instance] = true
+
+					local instance = original_instance
 					local ClassName = instance.ClassName
-
 					local Fix = InheritsFix(NilInstancesFixes, ClassName, instance)
 
 					if Fix then
 						instance = Fix(instance, InstancesOverrides)
-						-- continue
 					end
 
-					local Class = ClassList[ClassName]
-					if Class then
-						local ClassTags = Class.Tags
-						if Class.Service then -- For CSGDictionaryService, NonReplicatedCSGDictionaryService, LogService, ProximityPromptService, TestService & more
-							-- instance.Parent = game
-							instance = nil
-							-- continue
-						end
+					if instance then
+						nil_instances[nil_instances_size] = instance
+						nil_instances_size += 1
 					end
-				end
-				if instance then
-					nil_instances[nil_instances_size] = instance
-					nil_instances_size += 1
 				end
 			end
 			SaveNotCreatable = true
