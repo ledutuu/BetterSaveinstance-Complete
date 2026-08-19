@@ -6,7 +6,7 @@ A script for Roblox executors that converts the game you are in to a file you ca
 
 ```lua
 local Params = {
- RepoURL = "https://raw.githubusercontent.com/ledutuu/BetterSaveinstance/refs/heads/main/", 
+ RepoURL = "https://raw.githubusercontent.com/ledutuu/BetterSaveinstance/refs/heads/main/",
  SSI = "saveinstance",
 }
 local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
@@ -15,6 +15,8 @@ synsaveinstance(Options)
 ```
 # Differences From the Original
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
+- Reduced peak memory usage by keeping serialized output in independent chunks and joining it only when a single output string is required.
+- Skips empty BinaryString/SharedString properties and filters readable hidden properties that match their class defaults. Non-empty Terrain, Union, and MeshPart data is preserved.
 - Custom Decompiler (decomptype)
     - Uses a locally hosted version of Konstant 2.1 for blazingly fast speed
     - Enabled when there is no decompiler, or with the option decomptype = "custom"
@@ -31,7 +33,7 @@ synsaveinstance(Options)
   - Enabled with the option SaveAsAttributes
 - Support for saving properties of instances with a NotCreatableFix
   - Works by converting them to attributes
-  - Enabled with the option SavePropsAsAttributesForNotCreatableFixes 
+  - Enabled with the option SavePropsAsAttributesForNotCreatableFixes
 - Better default executors for many options
 - A fix for the UGCValidationService detection
   - Enabled if your executor's gethiddenproperty is working, or with the option DisableGethiddenpropertyFallback
@@ -41,7 +43,7 @@ synsaveinstance(Options)
 # Universal Syn Save Instance
 
 Or shortly USSI, a project aimed at resurrecting saveinstance function from Synapse X.<br />
-Reason: Many Executors fail miserably at providing good user experience when it comes to tinkering with saving instances.
+Reason: Many tools fail miserably at providing good user experience when it comes to tinkering with saving instances.
 
 > [!WARNING]
 > As stated under the Section 7 (b) in the LICENSE:
@@ -49,9 +51,19 @@ Reason: Many Executors fail miserably at providing good user experience when it 
 > - You are **NOT** allowed to claim authorship of the source code provided in this repository
 > - You **MUST** always include the following [License](https://github.com/luau/UniversalSynSaveInstance/blob/main/LICENSE)
 
+## Disclaimer
+
+This project is provided for development, debugging, archival, and research purposes within the Roblox platform.
+
+It is not intended for misuse, including violating platform rules, unauthorized access, or redistribution of content without permission.
+
+Users are responsible for ensuring their usage complies with all applicable rules, including Roblox’s Terms of Use.
+
+The maintainers do not support or condone misuse of this software and are not responsible for how it is used.
+
 > [!TIP]
-> Important part about this saveinstance is that it doesn't modify anything, therefore reduces the amount of detection vectors by a lot.<br />
-> You can also enable the `SafeMode` option to completely bypass any detections and save **ANY** game!<br /><br />
+> Important part about this saveinstance is that it doesn't modify game state, which helps maintain stability and compatibility.<br />
+> You can also enable the `SafeMode` option to improve compatibility and ensure more reliable saving across a wide range of experiences.<br /><br /> You can read more about it here [Documentation]
 > If this script is helpful to you, please click `⭐ Star` in the upper right corner of the page to support it, thank you!
 # Options Documentation
 > [!NOTE]
@@ -91,7 +103,7 @@ All options are case insensitive.
   - If set, the serialized data will be sent to the callback function instead of to file.
   - Parameters:
     - totalstr: The serialized data (`string`)
-    - chucks: An internal table used by the saveinstance (`table`)
+    - chunks: Serialized output chunks (`table`)
     - totalsize: The size of totalstr in bytes (`integer`)
   - Default: false
 - mode: `string | table`
@@ -116,11 +128,14 @@ All options are case insensitive.
   - "custom" - for a built-in custom decompiler.
   - Uses Konstant 2.1, locally hosted instead of the API to increase speed. ([Konstant Discord Server](https://discord.gg/brNTY8nX8t), [Konstant Decompiled Source Code](https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
   - Default: Your executor's decompiler, if available. Otherwise uses "custom" if not.
-- timeout: `number`
+- DecompileTimeout: `number`
   - If the decompilation run time exceeds this value it gets cancelled.
   - Set to -1 to disable timeout (unreliable).
-  - Aliases: DecompileTimeout
+  - Alias: timeout
   - Default: 10
+- BytecodeTimeout: `number`
+  - Maximum time allowed for a bytecode read. Set to -1 to disable the timeout.
+  - Default: 3
 - DecompileJobless: `boolean`
   - Includes already decompiled code in the output. No new scripts are decompiled.
   - Enables the option ScriptCache
@@ -134,7 +149,7 @@ All options are case insensitive.
   - Default: true
 - SaveBytecodeIfDecompilerFails: `boolean`
   - Includes bytecode in the output ONLY in these cases: if the decompiler fails (works on most decompilers), if noscripts is enabled, or if the decompiler isn't found. Useful if you wish to be able to decompile it yourself later.
-  - Option Savebytecode takes priority over this. 
+  - Option Savebytecode takes priority over this.
   - Default: false
 - SaveAsAttributes `boolean`
   - Saves properties that cannot be saved or loaded by roblox studio (CanSave or CanLoad = false in the api dump) by converting them into attributes.
@@ -148,7 +163,7 @@ All options are case insensitive.
 - IgnoreList: `{Instance | Instance.ClassName | [Instance.ClassName]={Instance.Name}}`
   - Prevents instances from saving.
   - Structure is similar to @DecompileIgnore except = false meaning if you ignore one instance it will automatically ignore its descendants.
-  - Aliases: InstancesBlacklist 
+  - Aliases: InstancesBlacklist
   - Default: {CoreGui, CorePackages}
 - ExtraInstances: `{Instance}`
   - If used with any invalid mode (like "invalidmode") it will only save these instances.
@@ -160,8 +175,7 @@ All options are case insensitive.
   - The less the value the more often it saves, but that would mean less performance due to constantly saving.
   - Default: 0x1600 * 10
 - FilePath: `string`
-  - Must only contain the name of the file, no file extension.
-  - EX: FilePath = "Place" not "Place.rbxlx"
+  - Accepts a path with or without a file extension. The appropriate `.rbxlx`/`.rbxmx` extension is added only when missing.
   - Aliases: FileName
   - Default: false
 - AvoidFileOverwrite `boolean`
@@ -187,7 +201,7 @@ All options are case insensitive.
   - Default: true
 - IgnoreNotArchivable: `boolean`
   - Ignores the Archivable property and saves Non-Archivable instances.
-  - Aliases: IgnoreArchivable 
+  - Aliases: IgnoreArchivable
   - Default: true
 - IgnorePropertiesOfNotScriptsOnScriptsMode: `boolean`
   - Ignores properties of every instance that is not a script in "scripts" mode.
@@ -270,7 +284,7 @@ All options are case insensitive.
 > [!IMPORTANT]
 > This document is based largely on the efforts of [@Anaminus] & [@Dekkonot], authors of the [Roblox Format Specifications]. Additional
 resources include:
-> 
+>
 > - [Syngp Synapse X Source code 2019][Synapse X Source 2019] for base saveinstance code (extended by [@mblouka] & [@Acrillis])
 > - [Moon/LorekeeperZinnia][@LorekeeperZinnia] for being the original creator of saveinstance that was used in Synapse X, Elysian and many others. As well as being an inspiration for this project.
 > - [Rojo Rbx Dom Xml] for being a fallback documentation in case something wasn't clear in the [Roblox Format Specifications]
@@ -279,6 +293,7 @@ resources include:
 
 \*\*\* View source code of this file for more credits
 
+[Documentation]: https://luau.github.io/UniversalSynSaveInstance/api/SynSaveInstance
 [@Acrillis]: https://github.com/Acrillis
 [@Anaminus]: https://github.com/Anaminus
 [@Dekkonot]: https://github.com/Dekkonot
@@ -289,8 +304,6 @@ resources include:
 [pack]: https://create.roblox.com/docs/reference/engine/libraries/string#pack
 [unpack]: https://create.roblox.com/docs/reference/engine/libraries/string#unpack
 [string]: https://create.roblox.com/docs/reference/engine/libraries/string
-[DataType Exceptions]: https://github.com/rojo-rbx/rbx-dom/blob/8ca9250fa5a5ad3756c89e1e111e1aabaf698b27/rbx_reflector/src/cli/generate.rs#L196
-[KRNL Docs]: https://app.archbee.com/public/PREVIEW-2Jp4SDaAD4P1COFfx1p_t/PREVIEW-EtjA4sQe5zYUxIHwA6CqJ#mDB9D
 [KRNL-like saveinstance Options]: https://app.archbee.com/public/PREVIEW-2Jp4SDaAD4P1COFfx1p_t/PREVIEW-EtjA4sQe5zYUxIHwA6CqJ#mDB9D
 [Rojo Rbx Dom Xml]: https://github.com/rojo-rbx/rbx-dom/blob/master/docs/xml.md
 [Rojo Rbx Dom Binary]: https://github.com/rojo-rbx/rbx-dom/blob/master/docs/binary.md
@@ -300,12 +313,5 @@ resources include:
 [Roblox File Format]: https://github.com/MaximumADHD/Roblox-File-Format
 [Roblox Format Specifications]: https://github.com/RobloxAPI/spec/
 [Roblox Format Specifications Binary]: https://github.com/RobloxAPI/spec/blob/master/formats/rbxl.md
-[SharedStrings]: https://github.com/RobloxAPI/spec/blob/master/formats/rbxlx.md#sharedstring
-[Synapse X Docs Old]: https://synapsexdocs.github.io/custom-lua-functions/misc-functions/#save-instance
-[debug]: https://web.archive.org/web/20221021015553/https://docs.synapse.to/reference/debug_lib.html
-[Synapse X Docs]: https://web.archive.org/web/20230318113846/https://docs.synapse.to/reference/misc.html
 [Synapse X Source 2019]: https://github.com/Acrillis/SynapseX
-[PropertyPatches v1]: https://github.com/MaximumADHD/Roblox-File-Format/blob/main/Plugins/GenerateApiDump/PropertyPatches.lua#L72
-[PropertyPatches v2]: https://github.com/rojo-rbx/rbx-dom/tree/master/patches
-[PropertyPatches v3]: https://github.com/rojo-rbx/rbx-dom/blob/master/rbx_dom_lua/src/customProperties.lua
 [UNC]: https://github.com/unified-naming-convention/NamingStandard/commit/613c1956b801ace54ba141dfc60842a16608b54f

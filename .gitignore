@@ -1,6 +1,7 @@
+__pycache__
+.luaurc
 .vscode
 build
 docs
-test.luau
-tempCodeRunnerFile.luau
-test.py
+tempCodeRunnerFile.*
+test*.*

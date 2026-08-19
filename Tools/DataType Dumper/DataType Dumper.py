@@ -1,109 +1,101 @@
-import requests
-import os
-import re
-import sys
+import os, sys, requests
+p = os.path.dirname(os.path.abspath(__file__))
+while p != os.path.dirname(p) and not os.path.exists(os.path.join(p, "common")):
+    p = os.path.dirname(p)
+sys.path.insert(0, os.path.join(p, "common"))
+from dump_utils import write_dump_file, get_api_response
 
+def extract_caps(data, caps=None):
+    if caps is None: caps = set()
+    if isinstance(data, list):
+        for i in data: extract_caps(i, caps)
+    elif isinstance(data, dict):
+        for k, v in data.items(): extract_caps(v, caps)
+    elif isinstance(data, str): caps.add(data)
+    return caps
 
-def array_to_dictionary(table, hybrid_mode=None):
-    tmp = {}
-    if hybrid_mode == "adjust":
-        for key, value in table.items():
-            if isinstance(key, int):
-                tmp[value] = True
-            elif isinstance(value, dict):
-                tmp[key] = array_to_dictionary(value, "adjust")
-            else:
-                tmp[key] = value
-    else:
-        for value in table:
-            if isinstance(value, str):
-                tmp[value] = True
-    return tmp
+def get_roblox_types():
+    try:
+        resp = requests.get("https://api.github.com/repos/Roblox/creator-docs/contents/content/en-us/reference/engine/datatypes")
+        return [i["name"][:-5] for i in resp.json() if i["type"] == "file" and i["name"].endswith(".yaml")]
+    except: return []
 
+def fetch(vh=None):
+    resp, vh = get_api_response(vh)
+    data = resp.json()
+    dtypes, dtypes_set, save_t, load_t = [], set(), {}, {}
+    all_m_tags, all_caps, all_c_tags = set(), set(), set()
 
-datatypes = []
-datatypes_set = set()
-
-
-def api(version_hash=None):
-    if version_hash:
-        # Use the provided version hash
-        api_dump_url = f"https://setup.rbxcdn.com/{version_hash}-API-Dump.json"
-        try:
-            response = requests.get(api_dump_url)
-            response.raise_for_status()
-            return response
-        except requests.RequestException as e:
-            print(f"Error fetching API dump for {version_hash}: {e}")
-            sys.exit(1)
-    else:
-        # Fall back to the original method of finding the latest version
-        deploy_history_url = "https://setup.rbxcdn.com/DeployHistory.txt"
-        deploy_history = requests.get(deploy_history_url).text
-
-        lines = deploy_history.splitlines()
-
-        for line in reversed(lines):
-            match = re.search(r"(version-[^\s]+)", line)
-            if match:
-                version_hash = match.group(1)
-                api_dump_url = (
-                    f"https://setup.rbxcdn.com/{version_hash}-Full-API-Dump.json"
-                )
-                try:
-                    response = requests.get(api_dump_url)
-                    response.raise_for_status()
-                    return response
-                except requests.RequestException as e:
-                    print(f"Error fetching API dump for {version_hash}: {e}")
-
-
-def fetch_api(version_hash=None):
-    response = api(version_hash)
-    api_classes = response.json()["Classes"]
-
-    global datatypes
-    global datatypes_set
-
-    for api_class in api_classes:
-        class_members = api_class["Members"]
-
-        for member in class_members:
-            if member["MemberType"] == "Property":
-                ignored = False
-
-                if not ignored:
-                    member_tags = member.get("Tags")
-
-                    if member_tags:
-                        member_tags = array_to_dictionary(member_tags)
-
-                    serialization = member["Serialization"]
-                    if True:
-                        value_type = member["ValueType"]
-                        value_type_name = value_type["Name"]
-                        value_type_cat = value_type["Category"]
-                        if value_type_cat == "Enum":
-                            value_type_name = ""
-                        if value_type_cat == "Class":
-                            value_type_name = ""
-                        if value_type_name not in datatypes_set:
-                            datatypes_set.add(value_type_name)
-                            datatypes.append(value_type_name)
-
+    for c in data["Classes"]:
+        for t in c.get("Tags", []):
+            if isinstance(t, str): all_c_tags.add(t)
+        for m in c["Members"]:
+            for t in m.get("Tags", []):
+                if isinstance(t, str): all_m_tags.add(t)
+            for cap in extract_caps(m.get("Capabilities", [])): all_caps.add(cap)
+            if m["MemberType"] == "Property":
+                ser = m["Serialization"]
+                vt = m["ValueType"]
+                if vt["Category"] in ["Enum", "Class"]: continue
+                name = vt["Name"]
+                if ser["CanSave"]: save_t[name] = True
+                elif name not in save_t: save_t[name] = False
+                if ser["CanLoad"]: load_t[name] = True
+                elif name not in load_t: load_t[name] = False
+                if name not in dtypes_set:
+                    dtypes_set.add(name)
+                    dtypes.append(name)
+    
+    for e in data["Enums"]:
+        if e["Name"] == "SecurityCapability":
+            for i in e["Items"]: all_caps.add(i["Name"])
+            break
+    return vh, dtypes, dtypes_set, save_t, load_t, all_m_tags, all_caps, all_c_tags
 
 if __name__ == "__main__":
-    version_hash = None
-    if len(sys.argv) > 1:
-        version_hash = sys.argv[1]
     try:
-        fetch_api(version_hash)
-        datatypes.sort()
-        s = "\n".join(datatypes) + "\n"
-        print(s)
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        output_file_path = os.path.join(script_dir, "Dump")
-        with open(output_file_path, "w") as file:
-            file.write(s)
+        vh, dtypes, dtypes_set, save_t, load_t, all_m_tags, all_caps, all_c_tags = fetch(sys.argv[1] if len(sys.argv) > 1 else None)
+        dtypes.sort()
+        roblox = sorted(get_roblox_types())
+        all_d = sorted(list(set(dtypes) | set(roblox)))
+        api_only = set(dtypes) - set(roblox)
+        docs_only = set(roblox) - set(dtypes)
+        
+        lines = ["=== DATATYPES ==="]
+        for d in all_d:
+            ind = []
+            if d in api_only: ind.append("[API]")
+            elif d in docs_only: ind.append("[DOCS]")
+            else: ind.append("[BOTH]")
+            if d in dtypes_set:
+                if save_t.get(d): ind.append("{CanSave}")
+                if load_t.get(d): ind.append("{CanLoad}")
+                if (save_t.get(d) and not load_t.get(d)) or (load_t.get(d) and not save_t.get(d)):
+                    ind.append("-> Probably has a descriptor")
+            lines.append(f"{d} {' '.join(ind)}")
+        
+        lines.append("\n=== DATATYPES ANALYSIS ===")
+        lines.append(f"Total unique datatypes: {len(all_d)}")
+        lines.append(f"From API only: {len(api_only)}")
+        lines.append(f"From Docs only: {len(docs_only)}")
+        lines.append(f"In both sources: {len(set(dtypes) & set(roblox))}")
+        
+        lines.append("\n=== CLASS TAGS ===")
+        lines.append(f"Total unique class tags: {len(all_c_tags)}")
+        for t in sorted(all_c_tags): lines.append(f"  {t}")
+        
+        lines.append("\n=== MEMBER TAGS ===")
+        lines.append(f"Total unique tags: {len(all_m_tags)}")
+        for t in sorted(all_m_tags): lines.append(f"  {t}")
+        
+        lines.append("\n=== CAPABILITIES ===")
+        lines.append(f"Total unique capabilities: {len(all_caps)}")
+        for t in sorted(all_caps): lines.append(f"  {t}")
+        
+        content = "\n".join(lines) + "\n"
+        full = f"{vh}\n\n{content}"
+        print(content)
+        write_dump_file(full, "Dump", os.path.dirname(__file__))
     except Exception as e:
         print(f"Error: {e}")
+        import traceback; traceback.print_exc()

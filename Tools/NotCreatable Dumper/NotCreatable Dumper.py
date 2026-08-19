@@ -1,114 +1,25 @@
-import requests
-import os
-import re
-import sys
+import os, sys
+p = os.path.dirname(os.path.abspath(__file__))
+while p != os.path.dirname(p) and not os.path.exists(os.path.join(p, "common")):
+    p = os.path.dirname(p)
+sys.path.insert(0, os.path.join(p, "common"))
+from dump_utils import write_dump_file, get_api_response, array_to_dictionary
 
-def array_to_dictionary(table, hybrid_mode=None):
-    tmp = {}
-    if hybrid_mode == "adjust":
-        for key, value in table.items():
-            if isinstance(key, int):
-                tmp[value] = True
-            elif isinstance(value, dict):
-                tmp[key] = array_to_dictionary(value, "adjust")
-            else:
-                tmp[key] = value
-    else:
-        for value in table:
-            if isinstance(value, str):
-                tmp[value] = True
-    return tmp
-
-
-s = "\n"
-
-def api(version_hash=None):
-    if version_hash:
-        # Use the provided version hash
-        api_dump_url = f"https://setup.rbxcdn.com/{version_hash}-Full-API-Dump.json"
-        try:
-            response = requests.get(api_dump_url)
-            response.raise_for_status()
-            return response
-        except requests.RequestException as e:
-            print(f"Error fetching API dump for {version_hash}: {e}")
-            sys.exit(1)
-    else:
-        # Fall back to the original method of finding the latest version
-        deploy_history_url = "https://setup.rbxcdn.com/DeployHistory.txt"
-        deploy_history = requests.get(deploy_history_url).text
-
-        lines = deploy_history.splitlines()
-
-        for line in reversed(lines):
-            match = re.search(r"(version-[^\s]+)", line)
-            if match:
-                version_hash = match.group(1)
-                api_dump_url = f"https://setup.rbxcdn.com/{version_hash}-Full-API-Dump.json"
-                try:
-                    response = requests.get(api_dump_url)
-                    response.raise_for_status()
-                    return response
-                except requests.RequestException as e:
-                    print(f"Error fetching API dump for {version_hash}: {e}")
-
-def fetch_api(version_hash=None):
-    response = api(version_hash)
-    api_classes = response.json()["Classes"]
-
-    global s
-    class_list = {}
-
-    for api_class in api_classes:
-        class_name = api_class["Name"]
-        class_tags = api_class.get("Tags")
-
-        if class_tags:
-            # print(class_tags)
-            if len(class_tags) == 0:
-                print("tagsempty")
-            class_tags = array_to_dictionary(class_tags)
-        else:
-            print(class_name, "notags")
-
-        class_info = {
-            "Tags": class_tags,
-            "Superclass": api_class["Superclass"],
-            "Properties": {},
-        }
-
-        prev_len = len(s)
-
-        if (
-            class_tags
-            and class_tags.get("NotCreatable")
-            and not class_tags.get("Service")
-            and not "Base" in class_name
-            and not "Page" in class_name
-            and not "Plugin" in class_name
-            and not "Setting" in class_name
-        ):
-            s += f"{class_name}\n"
-
-        if len(s) != prev_len:
-            s += "\n"
-
-        class_list[class_name] = class_info
-
-    return class_list
+def fetch(vh=None):
+    resp, vh = get_api_response(vh)
+    s = f"{vh}\n\n"
+    for c in resp.json()["Classes"]:
+        tags = array_to_dictionary(c.get("Tags")) if c.get("Tags") else {}
+        name = c["Name"]
+        if tags.get("NotCreatable") and not tags.get("Service") and \
+           not any(x in name for x in ["Base", "Page", "Plugin", "Setting"]):
+            s += f"{name}\n\n"
+    return s
 
 if __name__ == "__main__":
-    # Check if version hash was passed as a command line argument
-    version_hash = None
-    if len(sys.argv) > 1:
-        version_hash = sys.argv[1]
-    
     try:
-        fetch_api(version_hash)
-        print(s)
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        output_file_path = os.path.join(script_dir, "Dump")
-        with open(output_file_path, "w") as file:
-            file.write(s)
+        content = fetch(sys.argv[1] if len(sys.argv) > 1 else None)
+        print(content)
+        write_dump_file(content, "Dump", os.path.dirname(__file__))
     except Exception as e:
         print(f"Error: {e}")

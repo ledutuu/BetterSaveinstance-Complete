@@ -1,5 +1,12 @@
+version-14d8b191232f4ddd
 
-Object does not inherit from Instance
+Classes that do NOT inherit from Object:
+----------------------------------------
+All classes inherit from Object
+
+Classes that do NOT inherit from Instance:
+----------------------------------------
+AnimationNode does not inherit from Instance
 Capture does not inherit from Instance
 ScreenshotCapture does not inherit from Instance
 VideoCapture does not inherit from Instance

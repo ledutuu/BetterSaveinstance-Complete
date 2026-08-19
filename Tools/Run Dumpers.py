@@ -1,32 +1,40 @@
-import os
-import subprocess
-import sys
+import os, subprocess, sys
 
-def run_python_files_in_directories(directory, script_name, version_hash=None):
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith(".py"):
-                file_path = os.path.join(root, file)
 
-                if os.path.abspath(file_path) == script_name:
+def run_files(directory, script_name, vh=None):
+    base_dir = os.path.normpath(os.path.abspath(directory))
+    non_py = []
+    for root, _, files in os.walk(directory):
+        if os.path.normpath(os.path.abspath(root)) == base_dir:
+            continue
+        for f in files:
+            fp = os.path.join(root, f)
+            if f.endswith(".py"):
+                if os.path.abspath(fp) == script_name:
                     continue
-                print(f"Found Python file: {file_path}")
+                print(f"Found: {fp}")
                 try:
-                    if version_hash:
-                        subprocess.run(["python", file_path, version_hash], check=True)
-                    else:
-                        subprocess.run(["python", file_path], check=True)
-                    print(f"Executed: {file_path}")
+                    subprocess.run(
+                        ["python", fp, vh] if vh else ["python", fp], check=True
+                    )
+                    print(f"Executed: {fp}")
                 except subprocess.CalledProcessError as e:
-                    print(f"Error running {file_path}: {e}")
+                    print(f"Error running {fp}: {e}")
+            elif f.endswith((".luau", ".lua")):
+                non_py.append(fp)
+    if non_py:
+        print(
+            "\n"
+            + "=" * 50
+            + "\nFiles that couldn't be run (non-Python files):\n"
+            + "=" * 50
+        )
+        for fp in non_py:
+            print(f"Could not run: {fp}")
+        print(f"Total non-Python files: {len(non_py)}")
+
 
 if __name__ == "__main__":
-    current_directory = os.path.dirname(os.path.abspath(__file__))
-    script_name = os.path.abspath(__file__)
-    
-    # Check if version hash was passed as a command line argument
-    version_hash = None
-    if len(sys.argv) > 1:
-        version_hash = sys.argv[1]
-    
-    run_python_files_in_directories(current_directory, script_name, version_hash)
+    d = os.path.dirname(os.path.abspath(__file__))
+    vh = sys.argv[1] if len(sys.argv) > 1 else None
+    run_files(d, os.path.abspath(__file__), vh)

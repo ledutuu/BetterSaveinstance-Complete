@@ -69,7 +69,10 @@ do
 		table.insert(keys, classname)
 	end
 	table.sort(keys)
-	local s = `Varies per executor; Tested on {identifyexecutor()}\n\n`
+	local s = `{version()}\nDoesnt get everything; Also varies per executor; Tested on {table.concat(
+		{ identifyexecutor() },
+		" "
+	)}\n\n`
 	for _, ClassName in keys do
 		local prevsiz = #s
 		local ClassInfo = api[ClassName]
@@ -95,6 +98,6 @@ do
 	-- warn(s)
 	task.wait(0.5)
 	-- print(s)
-	writefile("fakenot.txt", s)
+	writefile("fakenotcreatable.txt", s)
 	-- writefile("!missing.txt", game:GetService("HttpService"):JSONEncode(t))
 end

@@ -10,6 +10,9 @@ Instance.Tags {BinaryString}
 
 AnimationClip.GuidBinaryString {BinaryString}
 
+AnimationNodeDefinition.InputPinData {BinaryString}
+
+AnimationRigData.Generic {BinaryString}
 AnimationRigData.label {BinaryString}
 AnimationRigData.name {BinaryString}
 AnimationRigData.parent {BinaryString}
@@ -17,23 +20,29 @@ AnimationRigData.postTransform {BinaryString}
 AnimationRigData.preTransform {BinaryString}
 AnimationRigData.transform {BinaryString}
 
-StarterGui.RtlTextSupport {RtlTextSupport}
-StarterGui.VirtualCursorMode {VirtualCursorMode}
-
-BaseWrap.HSRAssetId {ContentId}
-BaseWrap.HSRData {SharedString}
-BaseWrap.HSRMeshIdData {SharedString}
-BaseWrap.TemporaryCageMeshId {ContentId}
-
-WrapLayer.TemporaryReferenceId {ContentId}
+AuroraScript.AuroraScriptBindingsSerialize {BinaryString}
 
 BallSocketConstraint.MaxFrictionTorqueXml {float}
 
-CustomEvent.PersistedCurrentValue {float}
+BasePart.Color3uint8 {Color3uint8}
+BasePart.MaterialVariantSerialized {string}
+BasePart.size {Vector3}
+
+BaseWrap.HSRData {SharedString}
+BaseWrap.HSRMeshIdData {SharedString}
+BaseWrap.TemporaryCageMeshContent {Content}
+BaseWrap.TemporaryCageMeshId {ContentId}
+TemporaryCageMeshContent -> CageMeshId {POTENTIAL PROXY Content}
+TemporaryCageMeshContent -> HSRAssetId {POTENTIAL PROXY Content}
+TemporaryCageMeshContent -> TemporaryCageMeshId {POTENTIAL PROXY Content}
 
 BevelMesh.Bevel {float}
 BevelMesh.Bevel Roundness {float}
 BevelMesh.Bulge {float}
+
+BinaryStringValue.Value {BinaryString}
+
+CustomEvent.PersistedCurrentValue {float}
 
 DebuggerBreakpoint.line {int}
 
@@ -43,6 +52,10 @@ Fire.heat_xml {float}
 Fire.size_xml {float}
 
 FloatCurve.ValuesAndTimes {BinaryString}
+
+FormFactorPart.formFactorRaw {FormFactor}
+formFactorRaw -> FormFactor {POTENTIAL PROXY Enum}
+formFactorRaw -> formFactor {POTENTIAL PROXY Enum}
 
 FunctionalTest.HasMigratedSettingsToTestService {bool}
 
@@ -63,7 +76,10 @@ Humanoid.InternalHeadScale {float}
 HumanoidDescription.EmotesDataInternal {string}
 HumanoidDescription.EquippedEmotesDataInternal {string}
 
-InsertService.AllowClientInsertModels {bool}
+Instance.AttributesSerialize {BinaryString}
+Instance.DefinesCapabilities {bool}
+Instance.HistoryId {UniqueId}
+Instance.Tags {SharedString}
 
 Lighting.ExtendLightRangeTo120 {RolloutState}
 Lighting.LightingStyle {LightingStyle}
@@ -175,6 +191,7 @@ Model.ModelMeshData {SharedString}
 Model.ModelMeshSize {Vector3}
 Model.NeedsPivotMigration {bool}
 Model.ScaleFactor {float}
+Model.SlimHash {SharedString}
 Model.WorldPivotData {OptionalCoordinateFrame}
 
 Workspace.AvatarUnificationMode {AvatarUnificationMode}
@@ -209,16 +226,59 @@ UseNewLuauTypeSolver -> TouchEventsUseCollisionGroups
 UseNewLuauTypeSolver -> UseImprovedModelLod
 SignalBehavior2 -> SignalBehavior
 
+PackageLink.PackageContentSerialize {Content}
 PackageLink.PackageIdSerialize {ContentId}
 PackageLink.VersionIdSerialize {int64}
+PackageContentSerialize -> PackageId {POTENTIAL PROXY Content}
+PackageContentSerialize -> PackageIdSerialize {POTENTIAL PROXY Content}
+
+Part.shape {PartType}
+shape -> Shape {POTENTIAL PROXY Enum}
+shape -> shap {POTENTIAL PROXY Enum}
+
+PartOperation.AssetId {ContentId}
+PartOperation.ChildData {BinaryString}
+PartOperation.ChildData2 {SharedString}
+PartOperation.ComponentIndex {int}
+PartOperation.Content {Content}
+PartOperation.FormFactor {FormFactor}
+PartOperation.InitialSize {Vector3}
+PartOperation.MeshData {BinaryString}
+PartOperation.MeshData2 {SharedString}
+PartOperation.OffCentered {bool}
+PartOperation.PhysicsData {BinaryString}
+PartOperation.SolidMeshHolder {NetAssetRef}
+Content -> AssetId {POTENTIAL PROXY Content}
 
 PartOperationAsset.ChildData {BinaryString}
 PartOperationAsset.MeshData {BinaryString}
+
+Path2D.PropertiesSerialize {BinaryString}
 
 Player.RawJoinData {BinaryString}
 
 Players.BanningEnabled {bool}
 Players.UseStrafingAnimations {bool}
+
+ProceduralModel.Dirty {bool}
+
+RolloutValidation.AdditionalFluffOne {int}
+RolloutValidation.AdditionalFluffThree {float}
+RolloutValidation.AdditionalFluffTwo {bool}
+RolloutValidation.CreationVersion {int}
+RolloutValidation.FirstBinaryExpectedValue {string}
+RolloutValidation.FirstBinaryString {BinaryString}
+RolloutValidation.FirstSharedExpectedValue {string}
+RolloutValidation.FirstSharedString {SharedString}
+RolloutValidation.GenerationStrategy {int}
+RolloutValidation.SecondBinaryExpectedValue {string}
+RolloutValidation.SecondBinaryString {BinaryString}
+RolloutValidation.SecondSharedExpectedValue {string}
+RolloutValidation.SecondSharedString {SharedString}
+RolloutValidation.ThirdBinaryExpectedValue {string}
+RolloutValidation.ThirdBinaryString {BinaryString}
+RolloutValidation.ThirdSharedExpectedValue {string}
+RolloutValidation.ThirdSharedString {SharedString}
 
 RotationCurve.ValuesAndTimes {BinaryString}
 
@@ -233,19 +293,42 @@ Smoke.size_xml {float}
 
 SoundService.VolumetricAudio {VolumetricAudio}
 
+StarterGui.ClipsDescendantsSupportsRotation {RolloutState}
+StarterGui.RtlTextSupport {RtlTextSupport}
+StarterGui.VirtualCursorMode {VirtualCursorMode}
+
 StarterPlayer.AvatarJointUpgrade_SerializedRollout {RolloutState}
+StarterPlayer.CreateDefaultPlayerModule {bool}
 StarterPlayer.EnableDynamicHeads {LoadDynamicHeads}
 StarterPlayer.LoadCharacterLayeredClothing {LoadCharacterLayeredClothing}
-AvatarJointUpgrade_SerializedRollout -> AvatarJointUpgrade
-LoadCharacterLayeredClothing -> LoadCharacterLayeredClothing 
+AvatarJointUpgrade_SerializedRollout -> AvatarJointUpgrade {POTENTIAL PROXY Enum}
+LoadCharacterLayeredClothing -> LoadCharacterLayeredClothing  {POTENTIAL PROXY Enum}
+
+StyleQuery.ConditionsSerialize {BinaryString}
 
 StyleRule.PropertiesSerialize {BinaryString}
+StyleRule.PropertyTransitionsSerialize {BinaryString}
 
 TerrainDetail.TexturePack {ContentId}
+TerrainDetail.TexturePackContent {Content}
+TexturePackContent -> ColorMap {POTENTIAL PROXY Content}
+TexturePackContent -> MetalnessMap {POTENTIAL PROXY Content}
+TexturePackContent -> NormalMap {POTENTIAL PROXY Content}
+TexturePackContent -> RoughnessMap {POTENTIAL PROXY Content}
+TexturePackContent -> TexturePack {POTENTIAL PROXY Content}
 
 TerrainRegion.ExtentsMax {Vector3int16}
 TerrainRegion.ExtentsMin {Vector3int16}
 TerrainRegion.SmoothGrid {BinaryString}
+
+TriangleMeshPart.AeroMeshData {SharedString}
+TriangleMeshPart.FluidFidelityInternal {FluidFidelity}
+TriangleMeshPart.InertiaMigrated {bool}
+TriangleMeshPart.PhysicalConfigData {SharedString}
+FluidFidelityInternal -> FluidFidelity {POTENTIAL PROXY Enum}
+
+TrussPart.style {Style}
+style -> Style {POTENTIAL PROXY Enum}
 
 UnvalidatedAssetService.CachedData {string}
 
@@ -259,32 +342,86 @@ UserGameSettings.TouchCameraMovementChanged {bool}
 UserGameSettings.TouchMovementChanged {bool}
 UserGameSettings.gaID {string}
 
-BinaryStringValue.Value {BinaryString}
+ValueCurve.ValuesAndTimes {BinaryString}
 
-DoubleConstrainedValue.value {double}
-
-IntConstrainedValue.value {int64}
+ViewportFrame.CameraCFrame {CFrame}
+ViewportFrame.CameraFieldOfView {float}
 
 WeldConstraint.CFrame0 {CFrame}
 WeldConstraint.Part0Internal {BasePart}
 WeldConstraint.Part1Internal {BasePart}
 WeldConstraint.State {int}
 
+Workspace.AvatarUnificationMode {AvatarUnificationMode}
+Workspace.CollisionGroupData {BinaryString}
+Workspace.EnableSLIMAvatars {RolloutState}
+Workspace.ExplicitAutoJoints {bool}
+Workspace.FluidForces {FluidForces}
+Workspace.IKControlConstraintSupport {IKControlConstraintSupport}
+Workspace.ImprovedAnimationConstraint {RolloutState}
+Workspace.ImprovedPhysicsReplication {RolloutState}
+Workspace.LayeredClothingCacheOptimizations {RolloutState}
+Workspace.MeshPartHeadsAndAccessories {MeshPartHeadsAndAccessories}
+Workspace.MeshStreamingAndImprovedLods {RolloutState}
+Workspace.ModelStreamingBehavior {ModelStreamingBehavior}
+Workspace.NextGenerationReplication {RolloutState}
+Workspace.PathfindingUseImprovedSearch {PathfindingUseImprovedSearch}
+Workspace.PhysicsSteppingMethod {PhysicsSteppingMethod}
+Workspace.PlayerCharacterDestroyBehavior {PlayerCharacterDestroyBehavior}
+Workspace.PlayerScriptsUseInputActionSystem {RolloutState}
+Workspace.PredictiveStreamingMode {PredictiveStreamingMode}
+Workspace.PrimalPhysicsSolver {PrimalPhysicsSolver}
+Workspace.RejectCharacterDeletions {RejectCharacterDeletions}
+Workspace.RenderingCacheOptimizations {RenderingCacheOptimizationMode}
+Workspace.ReplicateInstanceDestroySetting {ReplicateInstanceDestroySetting}
+Workspace.SandboxedInstanceMode {SandboxedInstanceMode}
+Workspace.SignalBehavior2 {SignalBehavior}
+Workspace.StreamOutBehavior {StreamOutBehavior}
+Workspace.StreamingIntegrityMode {StreamingIntegrityMode}
+Workspace.StreamingMinRadius {int}
+Workspace.StreamingTargetRadius {int}
+Workspace.TerrainWeldsFixed {bool}
+Workspace.TouchEventsUseCollisionGroups {RolloutState}
+Workspace.TouchesUseCollisionGroups {bool}
+Workspace.UseFixedSimulation {RolloutState}
+Workspace.UseNewLuauTypeSolver {RolloutState}
+Workspace.ValidateEnabledProximityPrompt {RolloutState}
+ValidateEnabledProximityPrompt -> EnableSLIMAvatars {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> ImprovedAnimationConstraint {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> ImprovedPhysicsReplication {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> LayeredClothingCacheOptimizations {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> MeshStreamingAndImprovedLods {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> NextGenerationReplication {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> NextGenerationReplicationAlias {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> PlayerScriptsUseInputActionSystem {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> PlayerScriptsUseInputActionSystemAlias {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> TouchEventsUseCollisionGroups {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> UseFixedSimulation {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> UseFixedSimulationAlias {POTENTIAL PROXY Enum}
+ValidateEnabledProximityPrompt -> UseNewLuauTypeSolver {POTENTIAL PROXY Enum}
+SignalBehavior2 -> SignalBehavior {POTENTIAL PROXY Enum}
+SignalBehavior2 -> SignalBehaviorAlias {POTENTIAL PROXY Enum}
+
+WrapLayer.TemporaryReferenceId {ContentId}
+WrapLayer.TemporaryReferenceMeshContent {Content}
+TemporaryReferenceMeshContent -> ReferenceMeshId {POTENTIAL PROXY Content}
+TemporaryReferenceMeshContent -> TemporaryReferenceId {POTENTIAL PROXY Content}
+
 
 Potential Proxy Properties:
+Animator.FacsReplicationData {Serialize: False}
+AuroraScript.AuroraScriptBindingsSerialize
+BallSocketConstraint.MaxFrictionTorqueXml
+BasePart.CollisionGroupReplicate {Serialize: False}
+BasePart.MaterialVariantSerialized
+BasePart.ReplicationPV {Serialize: False}
 EditableImage.IsReplicatedCopy {Serialize: False}
 EditableMesh.IsReplicatedCopy {Serialize: False}
-Instance.AttributesReplicate {Serialize: False}
-Instance.AttributesSerialize
-Animator.FacsReplicationData {Serialize: False}
-BallSocketConstraint.MaxFrictionTorqueXml
+FaceControls.InternalOverrideFACSData
 Fire.heat_xml
 Fire.size_xml
 Folder.ReplicatedGuiInsertionOrder {Serialize: False}
 GuiBase2d.ReplicatedInsertionOrder {Serialize: False}
-VideoFrame.PlayingReplicating {Serialize: False}
-VideoFrame.TimePositionReplicating {Serialize: False}
-Path2D.PropertiesSerialize
 Humanoid.Health_XML
 Humanoid.InternalBodyScale
 Humanoid.InternalDisplayName {Scriptable} {Serialize: False}
@@ -295,6 +432,12 @@ Humanoid.MoveDirectionInternal {Serialize: False}
 HumanoidDescription.EmotesDataInternal
 HumanoidDescription.EquippedEmotesDataInternal
 IncrementalPatchBuilder.SerializePatch {Scriptable}
+Instance.AttributesReplicate {Serialize: False}
+Instance.AttributesSerialize
+LodDataEntity.SlimReplicationTimestampSec {Serialize: False}
+MaterialService.Use2022MaterialsXml
+MeshPart.RenderFidelityReplicate {Serialize: False}
+MetaBreakpointContext.ContextDataInternal
 Motor.ReplicateCurrentAngle {Serialize: False}
 Motor6D.ReplicateCurrentAngle6D {Serialize: False}
 Motor6D.ReplicateCurrentOffset6D {Serialize: False}
@@ -302,17 +445,11 @@ AuroraScript.AuroraScriptBindingsSerialize
 MaterialService.Use2022MaterialsXml
 MetaBreakpointContext.ContextDataInternal
 NetworkSettings.IncomingReplicationLag {Scriptable}
-BasePart.CollisionGroupReplicate {Serialize: False}
-BasePart.MaterialVariantSerialized
-BasePart.ReplicationPV {Serialize: False}
-TriangleMeshPart.FluidFidelityInternal
-MeshPart.RenderFidelityReplicate {Serialize: False}
-PartOperation.SerializedCSGTree {Serialize: False}
-PartOperation.SerializedOperationGraph {Serialize: False}
-Workspace.ReplicateInstanceDestroySetting
+PackageLink.PackageContentSerialize
 PackageLink.PackageIdSerialize
 PackageLink.SerializedDefaultAttributes {Scriptable}
 PackageLink.VersionIdSerialize
+Path2D.PropertiesSerialize
 PhysicsSettings.AreTerrainReplicationRegionsShown {Scriptable}
 Player.AccountAgeReplicate {Serialize: False}
 Player.CountryRegionCodeReplicate {Serialize: False}
@@ -321,9 +458,11 @@ Player.InternalCharacterAppearanceLoaded {Serialize: False}
 Player.MembershipTypeReplicate {Serialize: False}
 Player.ReplicationFocus {Scriptable}
 Player.SuperSafeChatReplicate {Serialize: False}
+Player.UserIdModeReplicate {Serialize: False}
 PlayerEmulatorService.SerializedEmulatedPolicyInfo {Scriptable}
 Players.MaxPlayersInternal {Scriptable}
 Players.PreferredPlayersInternal {Scriptable}
+SlimAnimationDataEntity.SlimReplicationTimestampSec {Serialize: False}
 Smoke.opacity_xml
 Smoke.riseVelocity_xml
 Smoke.size_xml
@@ -336,7 +475,15 @@ Studio.Enable Internal Beta Features {Scriptable}
 Studio.Enable Internal Features {Scriptable}
 Studio.LoadInternalPlugins {Scriptable}
 StyleRule.PropertiesSerialize
+StyleRule.PropertyTransitionsSerialize
+TextChatMessage.PrefixTextInternal {Scriptable} {Serialize: False}
+TextChatMessage.TextInternal {Scriptable} {Serialize: False}
+TextChatMessage.TranslationInternal {Scriptable} {Serialize: False}
 TextSource.UserIdReplicated {Serialize: False}
 VideoPlayer.PlayingReplicating {Serialize: False}
 WeldConstraint.Part0Internal
 WeldConstraint.Part1Internal
+Workspace.ImprovedPhysicsReplication
+Workspace.NextGenerationReplication
+Workspace.NextGenerationReplicationAlias {Serialize: False}
+Workspace.ReplicateInstanceDestroySetting

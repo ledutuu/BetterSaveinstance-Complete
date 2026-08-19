@@ -1,44 +1,159 @@
+version-8b44d8f2067642d8
 
-Axes
-BinaryString
-BrickColor
-CFrame
-CSGPropertyData
-Color3
-Color3uint8
-ColorSequence
-Content
-ContentId
-DateTime
-Faces
-FacsReplicationData
-Font
-NetAssetRef
-NumberRange
-NumberSequence
-OptionalCoordinateFrame
-Path2DControlPoint
-PhysicalProperties
-ProtectedString
-QDir
-QFont
-Ray
-Rect
-Region3int16
-ReplicationPV
-SecurityCapabilities
-SharedString
-SystemAddress
-TweenInfo
-UDim
-UDim2
-UniqueId
-Vector2
-Vector3
-Vector3int16
-bool
-double
-float
-int
-int64
-string
+=== DATATYPES ===
+AdReward [DOCS]
+AnimTrackMetadata [API]
+AnimTrackPlayState [API]
+AnimTrackWeight [API]
+AssetContentMap [API] {CanSave} {CanLoad}
+Axes [BOTH] {CanSave} {CanLoad}
+BinaryString [API] {CanSave} {CanLoad}
+BrickColor [BOTH] {CanSave} {CanLoad}
+CFrame [BOTH] {CanSave} {CanLoad}
+CSGPropertyData [API]
+CatalogSearchParams [DOCS]
+Color3 [BOTH] {CanSave} {CanLoad}
+Color3uint8 [API] {CanSave} {CanLoad}
+ColorSequence [BOTH] {CanSave} {CanLoad}
+ColorSequenceKeypoint [DOCS]
+Content [BOTH] {CanSave} {CanLoad}
+ContentId [API] {CanSave} {CanLoad}
+DateTime [BOTH] {CanSave} -> Probably has a descriptor
+DockWidgetPluginGuiInfo [DOCS]
+Enum [DOCS]
+EnumItem [DOCS]
+Enums [DOCS]
+Faces [BOTH] {CanSave} {CanLoad}
+FacsReplicationData [API]
+FloatCurveKey [DOCS]
+Font [BOTH] {CanSave} {CanLoad}
+Instance [DOCS]
+NetAssetRef [API] {CanSave} {CanLoad}
+NumberRange [BOTH] {CanSave} {CanLoad}
+NumberSequence [BOTH] {CanSave} {CanLoad}
+NumberSequenceKeypoint [DOCS]
+OptionalCoordinateFrame [API] {CanSave} {CanLoad}
+OverlapParams [DOCS]
+Path2DControlPoint [BOTH] {CanLoad} -> Probably has a descriptor
+PathWaypoint [DOCS]
+PhysicalProperties [BOTH] {CanSave} {CanLoad}
+ProtectedString [API] {CanSave} {CanLoad}
+QDir [API] {CanSave} {CanLoad}
+QFont [API] {CanSave} {CanLoad}
+RBXScriptConnection [DOCS]
+RBXScriptSignal [DOCS]
+Random [DOCS]
+Ray [BOTH] {CanSave} {CanLoad}
+RaycastParams [DOCS]
+RaycastResult [DOCS]
+Rect [BOTH] {CanSave} {CanLoad}
+Region3 [DOCS]
+Region3int16 [BOTH]
+ReplicationPV [API]
+RotationCurveKey [DOCS]
+Secret [DOCS]
+SecurityCapabilities [BOTH] {CanSave} {CanLoad}
+SharedString [API] {CanSave} {CanLoad}
+SharedTable [DOCS]
+SystemAddress [API]
+TweenInfo [BOTH]
+UDim [BOTH] {CanSave} {CanLoad}
+UDim2 [BOTH] {CanSave} {CanLoad}
+UniqueId [API] {CanSave} {CanLoad}
+User [BOTH]
+ValueCurveKey [DOCS]
+Vector2 [BOTH] {CanSave} {CanLoad}
+Vector2int16 [DOCS]
+Vector3 [BOTH] {CanSave} {CanLoad}
+Vector3int16 [BOTH] {CanSave} {CanLoad}
+bool [API] {CanSave} {CanLoad}
+double [API] {CanSave} {CanLoad}
+float [API] {CanSave} {CanLoad}
+int [API] {CanSave} {CanLoad}
+int64 [API] {CanSave} {CanLoad}
+string [API] {CanSave} {CanLoad}
+
+=== DATATYPES ANALYSIS ===
+Total unique datatypes: 71
+From API only: 24
+From Docs only: 23
+In both sources: 24
+
+=== CLASS TAGS ===
+Total unique class tags: 6
+  Deprecated
+  NotBrowsable
+  NotCreatable
+  NotReplicated
+  PlayerReplicated
+  Service
+
+=== MEMBER TAGS ===
+Total unique tags: 11
+  CanYield
+  CustomLuaState
+  Deprecated
+  Hidden
+  NoYield
+  NotBrowsable
+  NotReplicated
+  NotScriptable
+  ReadOnly
+  WriteOnly
+  Yields
+
+=== CAPABILITIES ===
+Total unique capabilities: 53
+  AccessOutsideWrite
+  Animation
+  AssetCreateUpdate
+  AssetManagement
+  AssetRead
+  AssetRequire
+  Assistant
+  Audio
+  Avatar
+  AvatarAppearance
+  AvatarBehavior
+  Basic
+  CSG
+  CapabilityControl
+  Capture
+  Chat
+  Consequences
+  CreateInstances
+  DataStore
+  DynamicGeneration
+  Environment
+  Groups
+  Input
+  InternalTest
+  LegacySound
+  LoadOwnedAsset
+  LoadString
+  LoadUnownedAsset
+  LocalUser
+  Logging
+  Material
+  Monetization
+  Network
+  Physics
+  PlatformAvatarEditing
+  Players
+  Plugin
+  PluginOrOpenCloud
+  PromptExternalPurchase
+  RemoteCommand
+  RemoteEvent
+  RobloxEngine
+  RobloxScript
+  RunClientScript
+  RunServerScript
+  ScriptGlobals
+  SensitiveInput
+  ServerCommunication
+  Social
+  Teleport
+  UI
+  Unassigned
+  WritePlayer
