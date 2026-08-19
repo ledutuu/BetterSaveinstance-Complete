@@ -17,7 +17,10 @@ synsaveinstance(Options)
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
 - Reduced peak memory usage by keeping serialized output in independent chunks and joining it only when a single output string is required.
 - Skips empty BinaryString/SharedString properties and filters readable hidden properties that match their class defaults. Non-empty Terrain, Union, and MeshPart data is preserved.
-- Filters `getnilinstances()` results to true roots so descendants are not serialized repeatedly with duplicate referents.
+- Filters `getnilinstances()` roots through `GetDescendants()` and enforces one serialized `<Item>` per Instance, even when an executor reports unreliable `Parent` values.
+- Saves reachable reference targets in a dedicated `Referenced Instances` folder and converts targets that remain unavailable to `null`, preventing dangling referents in Studio.
+- Avoids serializing the Players service twice when `IsolatePlayers` is combined with `mode = "full"`.
+- Warns when an unknown option is supplied instead of silently ignoring it (for example, `DecompileMesh` is not a supported option).
 - Custom Decompiler (decomptype)
     - Uses a locally hosted version of Konstant 2.1 for blazingly fast speed
     - Enabled when there is no decompiler, or with the option decomptype = "custom"

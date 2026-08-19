@@ -3128,6 +3128,8 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 
 						OPTIONS[option] = finalValue
 						CustomOptions_valid[option] = true
+					else
+						warn("UNKNOWN SAVEINSTANCE OPTION (IGNORED):", key)
 					end
 				end
 			end
@@ -3194,6 +3196,13 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	end
 
 	local InstancesOverrides = setmetatable({}, { __mode = "k" })
+	-- Keep these tables strong for the duration of the save. Some executors expose
+	-- nil instances through unstable Parent values, but the instance identity used
+	-- by getRef remains stable. Tracking identity here guarantees one Item per
+	-- instance and lets references be validated after every hierarchy is written.
+	local SerializedInstances = {}
+	local SerializedReferents = {}
+	local ReferencedInstances = {}
 
 	local DecompileIgnore, IgnoreList, IgnoreProperties, NotCreatableFixes =
 		ArrayToDict(OPTIONS.DecompileIgnore, true),
@@ -3460,6 +3469,15 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 			end
 			for instance in unique do
 				table.insert(tmp, instance)
+			end
+		end
+
+		if OPTIONS.IsolatePlayers then
+			local Players = service.Players
+			for i = #tmp, 1, -1 do
+				if tmp[i] == Players then
+					table.remove(tmp, i)
+				end
 			end
 		end
 
@@ -4149,6 +4167,10 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	end
 	local function save_hierarchy(hierarchy)
 		for _, instance in hierarchy do
+			if SerializedInstances[instance] then
+				continue
+			end
+
 			local InstanceOverride, ClassTagOverride, ClassNameOverride
 
 			if not InstanceOverride then
@@ -4228,6 +4250,9 @@ end
 					end
 				end
 			end
+
+			SerializedInstances[instance] = true
+			SerializedReferents[getRef(instance)] = true
 
 			if Crashlog then Crashlog("Saving Instance "..instance:GetFullName().." Class "..ClassName) end
 			if SaveAsAttributes then
@@ -4362,6 +4387,7 @@ end
 						if Category == "Class" then
 							tag = "Ref"
 							if raw then
+								ReferencedInstances[raw] = true
 								if SaveNotCreatableWillBeEnabled then
 									local Fix = NotCreatableFixes[raw.ClassName]
 									if
@@ -4375,7 +4401,9 @@ end
 									end
 								end
 
-								value = getRef(raw)
+								-- Resolve after all normal and reference-closure hierarchies have
+								-- been written. Missing targets become null instead of invalid refs.
+								value = "__USSI_REF_" .. getRef(raw) .. "__"
 							else
 								value = "null"
 							end
@@ -4650,8 +4678,8 @@ end
 			local nil_instances, nil_instances_size = {}, 1
 			local NilInstancesFixes = OPTIONS.NilInstancesFixes
 			local all_nil_instances = global_container.getnilinstances()
-			local nil_instance_set = setmetatable({}, { __mode = "k" })
-			local root_seen = setmetatable({}, { __mode = "k" })
+			local nil_instance_set = {}
+			local descendant_set = {}
 
 			-- getnilinstances() commonly returns both an unparented root and every
 			-- descendant below it. Saving every result as a root serializes the same
@@ -4667,14 +4695,25 @@ end
 				end
 			end
 
+			-- Parent can incorrectly read as nil for every result on some executors.
+			-- GetDescendants is also what save_hierarchy uses and therefore gives a
+			-- reliable view of which candidates are already covered by another root.
+			for instance in nil_instance_set do
+				local ok, descendants = pcall(instance.GetDescendants, instance)
+				if ok then
+					for _, descendant in descendants do
+						if nil_instance_set[descendant] then
+							descendant_set[descendant] = true
+						end
+					end
+				end
+			end
+
 			for _, original_instance in all_nil_instances do
 				if
 					nil_instance_set[original_instance]
-					and not nil_instance_set[original_instance.Parent]
-					and not root_seen[original_instance]
+					and not descendant_set[original_instance]
 				then
-					root_seen[original_instance] = true
-
 					local instance = original_instance
 					local ClassName = instance.ClassName
 					local Fix = InheritsFix(NilInstancesFixes, ClassName, instance)
@@ -4691,6 +4730,44 @@ end
 			end
 			SaveNotCreatable = true
 			save_extra("Nil Instances", nil_instances)
+		end
+
+		-- A property can reference an instance outside the selected hierarchy. Save
+		-- those targets after the normal roots, iterating because a newly included
+		-- target can itself introduce more references. Targets that still cannot be
+		-- serialized are converted to null during final reference resolution.
+		do
+			local attempted = {}
+			local opened
+			while true do
+				local pending, pending_size = {}, 1
+				for instance in ReferencedInstances do
+					if not SerializedInstances[instance] and not attempted[instance] and instance ~= game then
+						attempted[instance] = true
+						local Class = ClassList[instance.ClassName]
+						if not (Class and Class.Service) then
+							pending[pending_size] = instance
+							pending_size += 1
+						end
+					end
+				end
+
+				if pending_size == 1 then
+					break
+				end
+
+				if not opened then
+					opened = true
+					savebuffer[savebuffer_size] = save_specific("Folder", { Name = "Referenced Instances" })
+					savebuffer_size += 1
+				end
+				save_hierarchy(pending)
+			end
+
+			if opened then
+				savebuffer[savebuffer_size] = "</Item>"
+				savebuffer_size += 1
+			end
 		end
 
 		if OPTIONS.ReadMe then
@@ -4782,6 +4859,18 @@ end
 		savebuffer_size += 1
 		save_cache()
 		do
+			-- Replace deferred reference tokens in one pass per chunk. This keeps
+			-- forward references valid and guarantees that no dangling referent is
+			-- emitted when a target was unavailable or intentionally filtered.
+			totalsize = #header
+			for _, chunk in chunks do
+				chunk.str = string.gsub(chunk.str, "__USSI_REF_(%d+)__", function(ref)
+					return SerializedReferents[tonumber(ref)] and ref or "null"
+				end)
+				chunk.size = #chunk.str
+				totalsize += chunk.size
+			end
+
 			-- ! Assuming we only write to file once hence why we only filter once
 			-- TODO This might cause issues on non-unique Usernames (ex. "Cake" if game is about cakes then everything supposedly related to your name will be replaced with "Roblox"); Certain UserIds might also affect numbers, like if your UserId is 2481848 and there is some number that goes like "1.248184818837" then that the matched part will be replaced with 1, potentially making the number incorrect.
 			-- TODO So for now it's best to keep this disabled by default
