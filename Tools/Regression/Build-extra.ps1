@@ -11,13 +11,14 @@ function Slice([string]$start, [string]$end) {
     if ($b -lt 0) { throw "Missing end: $end" }
     return $src.Substring($a, $b - $a)
 }
-$api = Slice "`t`tlocal FILE_NAME =" "`t`tlocal classList ="
+$api = Slice "`tFetchAPI = function(" "`t`tlocal classList ="
+$api = $api.Substring($api.IndexOf("`n") + 1)
 $filter = Slice "`t`tlocal reflectionFilter" "`t`t-- ! exact version match"
 $content = Slice "`t`t`t`t`t`t`tif not ContentProperties then" "`t`t`t`t`t`t`tif ContentProperties[PropertyName]"
 $spinner = Slice "`tlocal LoadingText, LoadingThread, IsLoading" "`tlocal function makeTimeoutHandler"
 $cleanup = Slice "`tlocal Connections = {}" "`tdo`n`t`tlocal Players = service.Players"
-$antiidle = Slice "`t`tif OPTIONS.AntiIdle then" "`t`tif not ClassList then"
-$finish = Slice "`t`tif not ClassList then" "`t`telapse_t = os.clock() - elapse_t"
+$antiidle = Slice "`t`tif OPTIONS.AntiIdle then" "`t`tif not ClassList"
+$finish = Slice "`t`tif not ClassList" "`t`telapse_t = os.clock() - elapse_t"
 $wrapper = Slice 'local function synsaveinstance(CustomOptions, CustomOptions2)' 'return synsaveinstance'
 $head = @'
 local checks = 0
@@ -25,15 +26,20 @@ local function check(value, reason)
     assert(value, reason)
     checks += 1
 end
-local function exerciseApi(mode)
+local lastApiCalls
+local function exerciseApi(mode, requestedSource)
     local calls = {capabilities = 0, classes = 0, mini = 0, warnings = 0, reads = 0, writes = 0, stages = {}}
+    calls.http, calls.full = 0, 0
+    lastApiCalls = calls
+    local apiDumpSource = requestedSource or "full"
+    if requestedSource == false then apiDumpSource = nil end
     local disableReflectionService = mode == "disable-reflection"
     local useAPICache = mode ~= "network-cache-disabled"
     local traceStage = function(stage) table.insert(calls.stages, stage) end
     local FULL_VERSION, CLIENT_VERSION = "0.742.0.7421053", 742
     local readfile = function()
         calls.reads += 1
-        if mode == "cache" or mode == "empty-cache" or mode == "invalid-cache" then return "cached" end
+        if mode == "cache" or mode == "empty-cache" or mode == "invalid-cache" or mode == "dual-cache" then return "cached" end
         error("cache missing")
     end
     local SecurityCapabilities = mode ~= "missing-capabilities" and {
@@ -59,6 +65,8 @@ local function exerciseApi(mode)
                 if mode == "invalid-cache" then return {[FULL_VERSION] = "corrupt"} end
                 return {[FULL_VERSION] = {{Name = "Folder", Members = {}}}}
             end
+            if value == "empty-mini" then return {Classes = {}} end
+            if value == "invalid-mini" then return {Classes = {{Name = "Folder"}}} end
             if value == "mini" then return {Classes = {{Name = "Folder", Members = {}}}} end
             if value == "version" then return {version = FULL_VERSION, clientVersionUpload = "version-fixture"} end
             if value == "full" then return {Classes = {{Name = "Folder", Members = {{Name = "Name", MemberType = "Property", Default = ""}}}}} end
@@ -67,12 +75,16 @@ local function exerciseApi(mode)
         JSONEncode = function() return "encoded-cache" end,
     }}
     local game = {HttpGet = function(_, url)
-        if string.find(mode, "network-cache-", 1, true) then
+        calls.http += 1
+        if string.find(mode, "network-cache-", 1, true) or string.find(mode, "dual-", 1, true) then
             if string.find(url, "clientsettingscdn.roblox.com", 1, true) then return "version" end
-            if string.find(url, "-Full-API-Dump.json", 1, true) then return "full" end
+            if string.find(url, "-Full-API-Dump.json", 1, true) then calls.full += 1; return "full" end
         end
         if string.find(url, "Mini-API-Dump.json", 1, true) then
             calls.mini += 1
+            if mode == "dual-mini-http-error" then error("mini fixture unavailable") end
+            if mode == "dual-mini-empty" then return "empty-mini" end
+            if mode == "dual-mini-invalid" then return "invalid-mini" end
             if mode == "all-fail" then error("mini unavailable") end
             return "mini"
         end
@@ -105,6 +117,46 @@ for _, mode in {"empty-cache", "invalid-cache"} do
 end
 local ok, err = pcall(exerciseApi, "all-fail")
 check(not ok and string.find(err, "No usable Roblox API dump", 1, true), "all failed API sources report explicit initialization error")
+local function selectedSource(calls, name)
+    for _, stage in calls.stages do
+        if string.find(stage, "API_SOURCE_SELECTED " .. name, 1, true) then return true end
+    end
+    return false
+end
+dump, calls = exerciseApi("dual-mini-ok", "AuTo")
+check(#dump == 1 and calls.mini == 1 and calls.http == 1 and calls.full == 0
+    and calls.reads == 0 and calls.writes == 0 and calls.capabilities == 0 and calls.classes == 0,
+    "auto chooses Mini before Full, cache disk IO, or Reflection")
+check(selectedSource(calls, "mini"), "auto trace identifies selected Mini source")
+dump, calls = exerciseApi("dual-mini-ok", false)
+check(#dump == 1 and calls.mini == 1 and calls.http == 1 and calls.reads == 0,
+    "omitted APIDumpSource defaults to automatic Mini priority")
+for _, mode in {"dual-mini-http-error", "dual-mini-empty", "dual-mini-invalid"} do
+    dump, calls = exerciseApi(mode, "auto")
+    check(#dump == 1 and calls.mini == 1 and calls.full == 1 and calls.reads == 1
+        and calls.writes == 1 and calls.classes == 0,
+        "auto falls back from unavailable Mini to usable Full on " .. mode)
+    check(selectedSource(calls, "full"), "fallback trace identifies Full source on " .. mode)
+end
+ok, err = pcall(exerciseApi, "dual-mini-http-error", "MiNi")
+check(not ok and lastApiCalls.http == 1 and lastApiCalls.mini == 1 and lastApiCalls.full == 0
+    and lastApiCalls.reads == 0 and lastApiCalls.writes == 0 and lastApiCalls.classes == 0,
+    "Mini-only failure never tries Full, cache, or Reflection")
+dump, calls = exerciseApi("dual-mini-ok", "mini")
+check(#dump == 1 and calls.http == 1 and selectedSource(calls, "mini"), "explicit Mini-only success")
+dump, calls = exerciseApi("dual-mini-ok", "FuLl")
+check(#dump == 1 and calls.mini == 0 and calls.full == 1 and calls.reads == 1 and calls.writes == 1,
+    "explicit Full retains Full-first/cache behavior when Mini would succeed")
+check(selectedSource(calls, "full"), "explicit Full trace identifies Full source")
+dump, calls = exerciseApi("dual-cache", "full")
+check(#dump == 1 and calls.reads == 1 and calls.http == 0 and selectedSource(calls, "cache"),
+    "Full-first accepts version cache without network")
+dump, calls = exerciseApi("reflection", "full")
+check(selectedSource(calls, "reflection"), "readable source trace identifies Reflection fallback")
+ok, err = pcall(exerciseApi, "dual-mini-ok", "unsupported")
+check(not ok and string.find(tostring(err), "APIDumpSource", 1, true)
+    and lastApiCalls.http == 0 and lastApiCalls.reads == 0 and lastApiCalls.writes == 0,
+    "invalid source is rejected before HTTP or cache IO")
 local function exerciseContent(mode)
     local built, lookedUp = 0, 0
     local disableReflectionService = mode == "disabled"
@@ -177,12 +229,17 @@ local function exerciseLifecycle(mode)
         return {}
     end or nil
     local game = {}
-    local OPTIONS = {AntiIdle = true, BoostFPS = true}
-    local FetchAPI = function()
+    local OPTIONS = {AntiIdle = true, BoostFPS = true, APIDumpSource = "auto"}
+    local apiCalls = 0
+    local FetchAPI = function(_, _, _, source)
+        apiCalls += 1
+        check(source == "auto", "finish forwards API source preference")
         if mode == "api-error" then error("API fixture failure") end
-        return {}
+        return {}, "mini"
     end
-    local ClassList = nil
+    local ClassList = (mode == "source-reuse" or mode == "source-change") and {} or nil
+    local ClassListSource = mode == "source-change" and "full" or mode == "source-reuse" and "auto" or nil
+    local ClassListDataSource = mode == "source-reuse" and "mini" or nil
     local warn = function() end
     local elapse_t
     local old_gethiddenproperty = nil
@@ -215,13 +272,16 @@ $lifecycleTail = @'
     check(disconnected == ((mode == "delayed-idle" or mode == "delayed-idle-connections") and 1 or 2), "cleanup disconnects tracked and AntiIdle listeners on " .. mode)
     check(renderingRestored == 1, "BoostFPS rendering is restored on " .. mode)
     check(saveCalls == (mode == "api-error" and 0 or 1), "completion path invokes saving only after API success on " .. mode)
+    check(apiCalls == (mode == "source-reuse" and 0 or 1), "finish reuses only matching source preference on " .. mode)
+    if mode ~= "api-error" then check(ClassListSource == "auto", "successful fetch/reuse records source preference on " .. mode) end
+    if mode ~= "api-error" then check(ClassListDataSource == "mini", "successful fetch/reuse retains selected source on " .. mode) end
     local disconnectCount = disconnected
     session.cleanup()
     Connect(event, function() end)
     session.cleanup()
     check(disconnected == disconnectCount and anti_idle == nil, "cleanup stays idempotent and rejects late listeners on " .. mode)
 end
-for _, mode in {"success", "save-error", "api-error", "no-spinner", "delayed-idle", "delayed-idle-connections"} do
+for _, mode in {"success", "save-error", "api-error", "no-spinner", "delayed-idle", "delayed-idle-connections", "source-reuse", "source-change"} do
     exerciseLifecycle(mode)
 end
 '@

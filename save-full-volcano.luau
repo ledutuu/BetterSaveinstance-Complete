@@ -39,6 +39,7 @@ local ok, err = xpcall(function()
         DisableGethiddenpropertyFallback = false,
         DisableReflectionService = false,
         APICache = false,
+        APIDumpSource = "auto",
         SafeMode = false,
         KillAllScripts = false,
         BoostFPS = false,

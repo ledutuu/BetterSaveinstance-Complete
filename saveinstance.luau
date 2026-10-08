@@ -1281,7 +1281,7 @@ do
 	XML_Encoders[encoderName] = XML_Encoders[redirectName]
 end
 
-local ClassList, FetchAPI
+local ClassList, ClassListSource, ClassListDataSource, FetchAPI
 local XML_Descriptors = XML_Encoders
 
 do
@@ -2241,10 +2241,21 @@ do
 
 	NotScriptableFixes.Workspace.CollisionGroupData = NotScriptableFixes.WorldRoot.CollisionGroupData -- TODO Remove once v732 goes live
 
-	FetchAPI = function(traceStage, disableReflectionService, useAPICache)
+	FetchAPI = function(traceStage, disableReflectionService, useAPICache, apiDumpSource)
 		-- Credits @MaximumADHD
 
 		local FILE_NAME = "API_DUMP.json"
+		local sourcePreference = apiDumpSource or "auto"
+		assert(type(sourcePreference) == "string", "APIDumpSource must be auto, mini or full")
+		sourcePreference = string.lower(sourcePreference)
+		assert(sourcePreference == "auto" or sourcePreference == "mini" or sourcePreference == "full", "APIDumpSource must be auto, mini or full")
+		local function usableClasses(classes)
+			if type(classes) ~= "table" or #classes == 0 then return false end
+			for _, class in classes do
+				if type(class) ~= "table" or type(class.Name) ~= "string" or type(class.Members) ~= "table" then return false end
+			end
+			return true
+		end
 
 		local API_Dump
 		local reflectionFilter
@@ -2494,12 +2505,21 @@ do
 			end,
 		}
 
-		for i, fetcher in APIDUMP_FETCHERS do
+		local fetcherOrder = sourcePreference == "mini" and { 4 }
+			or sourcePreference == "full" and { 1, 2, 3, 4 }
+			or { 4, 1, 2, 3 }
+		local sourceNames = { "cache", "full", "reflection", "mini" }
+		local selectedSource
+		if traceStage then traceStage("API_SOURCE_PREFERENCE " .. sourcePreference) end
+		for _, i in fetcherOrder do
+			local fetcher = APIDUMP_FETCHERS[i]
 			if traceStage then traceStage("API_FETCHER_" .. i .. "_BEGIN") end
 			local o, r = pcall(fetcher)
 			if traceStage then traceStage("API_FETCHER_" .. i .. "_END ok=" .. tostring(o)) end
-			if o and type(r) == "table" and #r > 0 then
+			if o and usableClasses(r) then
 				API_Dump = r
+				selectedSource = sourceNames[i]
+				if traceStage then traceStage("API_SOURCE_SELECTED " .. sourceNames[i]) end
 				if i == 2 then -- relies on [2] being the same
 					if writefile and useAPICache ~= false then
 						if traceStage then traceStage("API_CACHE_ENCODE_BEGIN") end
@@ -2710,7 +2730,7 @@ do
 			classList[ClassName] = Class
 		end
 
-		return classList
+		return classList, selectedSource
 	end
 end
 
@@ -2774,6 +2794,12 @@ All options are case insensitive.
 - DisableReflectionService: `boolean`
   - Skips ReflectionService API fallback and supplementary Content metadata reads.
   - Default: false
+- APIDumpSource: `string`
+  - `auto`: try MaximumADHD Mini-API-Dump first, then the existing full-version cache/Full API dump and Reflection fallbacks if Mini is unavailable, empty, or malformed.
+  - `mini`: use only Mini-API-Dump. `full`: prefer the existing full-version cache/Full API dump, with the previous Reflection/Mini fallbacks.
+  - Values are case insensitive. Switching preference reloads the in-memory class list. Trace headers retain APIDumpSource and APIDumpSelected.
+  - Sources are tried sequentially; a native executor crash cannot be caught and trigger fallback.
+  - Default: auto
 - APICache: `boolean`
   - Controls reads/writes of API_DUMP.json. Set false to isolate native cache failures.
   - Default: true
@@ -3009,6 +3035,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		DisableGethiddenpropertyFallback = (gethiddenproperty and EXECUTOR_NAME ~= "Nihon") or false,
 		DisableReflectionService = false,
 		APICache = true,
+		APIDumpSource = "auto",
 		Crashlog = false,
 		TraceProgress = false,
 		YieldInterval = 0.02,
@@ -3343,9 +3370,13 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 				.. " IgnoreSpecialProperties=" .. tostring(OPTIONS.IgnoreSpecialProperties)
 				.. " DisableReflectionService=" .. tostring(OPTIONS.DisableReflectionService)
 				.. " APICache=" .. tostring(OPTIONS.APICache)
+				.. " APIDumpSource=" .. tostring(OPTIONS.APIDumpSource or "auto")
 				.. " TraceProgress=" .. tostring(OPTIONS.TraceProgress or false)
+			local selectedSource = ClassListDataSource or "pending"
 			TraceStage = function(stage)
-				writefile("CRASHLOG_" .. CRASHLOG_ID .. "_STAGE.txt", stageHeader .. "\n" .. tostring(os.clock()) .. " " .. stage)
+				local selected = string.match(stage, "^API_SOURCE_SELECTED (.+)$")
+				if selected then selectedSource = selected end
+				writefile("CRASHLOG_" .. CRASHLOG_ID .. "_STAGE.txt", stageHeader .. " APIDumpSelected=" .. selectedSource .. "\n" .. tostring(os.clock()) .. " " .. stage)
 			end
 			TraceStage("CRASHLOG_READY")
 			session.trace = TraceStage
@@ -5445,12 +5476,14 @@ end
 		end
 
 		TraceStage("OPTION_SIDE_EFFECTS_END")
-		if not ClassList then
+		if not ClassList or ClassListSource ~= OPTIONS.APIDumpSource then
 			TraceStage("FETCH_API_BEGIN")
-			local ok, result = pcall(FetchAPI, TraceStage, OPTIONS.DisableReflectionService, OPTIONS.APICache)
+			local ok, result, selectedSource = pcall(FetchAPI, TraceStage, OPTIONS.DisableReflectionService, OPTIONS.APICache, OPTIONS.APIDumpSource)
 			TraceStage("FETCH_API_END ok=" .. tostring(ok))
 			if ok then
 				ClassList = result
+				ClassListSource = OPTIONS.APIDumpSource
+				ClassListDataSource = selectedSource
 			else
 				warn("Failed to load the API Dump")
 				warn(result)

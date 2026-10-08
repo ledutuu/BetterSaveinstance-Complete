@@ -35,6 +35,7 @@ local callOK, saveOK, err = pcall(saveinstance, {
     DisableGethiddenpropertyFallback = true,
     DisableReflectionService = true,
     APICache = false,
+    APIDumpSource = "auto",
     IgnoreSharedStrings = true,
     IgnoreSpecialStrings = true,
     IgnoreSpecialClassProperties = true,

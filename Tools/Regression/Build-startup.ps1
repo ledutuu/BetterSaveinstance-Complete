@@ -168,6 +168,9 @@ for _, mode in {"normal", "fallback"} do
     state.trace("fixture-progress-stage")
     check(string.find(state.files[progressPath], "fixture-progress-stage", 1, true)
         and string.find(state.files[progressPath], "ShowStatus=false", 1, true), "progress stage accepts phase strings and retains config")
+    state.trace("API_SOURCE_SELECTED mini")
+    state.trace("later-property-stage")
+    check(string.find(state.files[progressPath], "APIDumpSelected=mini", 1, true), "selected API source persists across phase updates")
 end
 for _, mode in {"disabled", "missing-write"} do
     local state = exerciseProgressIO(mode)

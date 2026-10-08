@@ -20,6 +20,7 @@ synsaveinstance(Options)
 The output is `MySavedGame_UnionFull.rbxlx`, with `BSI_FULL_BOOT.log` and sampled `CRASHLOG_<id>_STAGE.txt` progress. `BSI_VOLCANO_DIAGNOSTIC.rbxlx` deliberately omits important hidden geometry and is not a full export. Full native stability and geometry fidelity require a runtime test; the executor must provide working hidden-property and bytecode reads. Server-only data is unavailable to a client export.
 
 # Differences From the Original
+- Automatic API metadata sources: MaximumADHD Mini-API-Dump first, then versioned Full API/cache and Reflection fallbacks. APIDumpSource can select auto, mini-only, or Full-first; trace metadata records the source selected.
 - Integrates selected robustness improvements from UniversalSynSaveInstance `089986506e7ab9c50d7065d48b36e3bfbd5f78d7`: cooperative task scheduling, per-save inherited property caches, correct namespaced script-cache reuse, and cache-only decompilation behavior.
 - Default `SafeMode` and `KillAllScripts` are false. `SafeMode=true` intentionally disconnects the player; `KillAllScripts=true` invokes native thread/hook operations and can destabilize an executor.
 - `Decompile=false` and `noscripts=true` now actually skip decompilation, custom decompiler loading, and compilation-error bytecode reads. Explicit `SaveBytecode` options still request bytecode.
@@ -116,6 +117,12 @@ All options are case insensitive.
 - DisableReflectionService: `boolean`
   - Skips ReflectionService API fallback and supplementary Content metadata reads. Useful for isolating native startup failures; supplementary metadata may be unavailable.
   - Default: false
+- APIDumpSource: `string`
+  - `auto`: try MaximumADHD Mini-API-Dump first, then the existing full-version cache/Full API dump and Reflection fallbacks if Mini is unavailable, empty, or malformed.
+  - `mini`: use only Mini-API-Dump. `full`: prefer the existing full-version cache/Full API dump, with the previous Reflection/Mini fallbacks.
+  - Values are case insensitive. Switching preference reloads the in-memory class list. Trace headers retain APIDumpSource and APIDumpSelected.
+  - Sources are tried sequentially; a native executor crash cannot be caught and trigger fallback.
+  - Default: auto
 - APICache: `boolean`
   - Reads and writes the API_DUMP.json disk cache. Set false to isolate native disk-cache reads/writes; network/API fallback still runs.
   - Default: true

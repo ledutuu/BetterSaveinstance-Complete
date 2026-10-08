@@ -16,3 +16,5 @@ Generated harnesses are saved in ignored `build/regressions`. They execute the a
 These checks establish Luau control flow. Native executor crashes, Roblox import, Terrain/Union fidelity in Studio, and full game behavior require separate runtime checks.
 
 Discovery tests exercise actual local executor-function search: canonical priority, alias compatibility, depth and cycle handling, shared roots, hostile keys, cooperative scheduling, and no helper invocation. Startup tests also verify progress-only logging without appendfile and exact 0.5-second sampling boundaries.
+
+Dual-source tests cover Mini-first selection, HTTP failure/empty/malformed fallback, Mini-only isolation, Full/cache priority, invalid-source rejection, preference-switch reload and retained selected-source trace metadata.
