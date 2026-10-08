@@ -13,6 +13,12 @@ local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. 
 local Options = {} -- Documentation here: https://github.com/ledutuu/BetterSaveinstance-Complete/blob/main/README.md
 synsaveinstance(Options)
 ```
+# Full Volcano preset
+
+`save-full-volcano.luau` is a separate online client-export preset. It enables hidden geometry and SharedString reads, keeps Unions as UnionOperation, disables default-property filtering, and requests the bundled Konstant decompiler. It disables UI, API disk cache, verbose per-property logging and destructive side effects. It accepts a raw repository-root argument to pin both the preset and main source.
+
+The output is `MySavedGame_UnionFull.rbxlx`, with `BSI_FULL_BOOT.log` and sampled `CRASHLOG_<id>_STAGE.txt` progress. `BSI_VOLCANO_DIAGNOSTIC.rbxlx` deliberately omits important hidden geometry and is not a full export. Full native stability and geometry fidelity require a runtime test; the executor must provide working hidden-property and bytecode reads. Server-only data is unavailable to a client export.
+
 # Differences From the Original
 - Integrates selected robustness improvements from UniversalSynSaveInstance `089986506e7ab9c50d7065d48b36e3bfbd5f78d7`: cooperative task scheduling, per-save inherited property caches, correct namespaced script-cache reuse, and cache-only decompilation behavior.
 - Default `SafeMode` and `KillAllScripts` are false. `SafeMode=true` intentionally disconnects the player; `KillAllScripts=true` invokes native thread/hook operations and can destabilize an executor.
