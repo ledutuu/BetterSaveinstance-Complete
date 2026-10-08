@@ -61,3 +61,11 @@
 - Discarded the unpublished CrashlogMode/snapshot draft after the lag clarification; per-property rewrite logging would add disk traffic. That draft was never committed or pushed.
 - Validation: 43 core + 123 lifecycle/API + 60 scheduling/cache + 53 startup/progress + 31 discovery = 310 mocked assertions pass; 11 source files compile; Lua/Luau copies synchronized; git diff --check passes. The discovery harness initially reproduced the shared-root visit bug and passes after shallowest-depth tracking. Native Volcano stability and full export fidelity remain unverified.
 - User-provided runtime files and local scratch/CLI/harnesses stay outside the repository. Existing user authorization covers scoped commit/push. Next runtime evidence is BSI_BOOT.log, BSI_DIAGNOSTIC.log and the newest matching _STAGE.txt; if bootstrap logging itself produces no file, the loader path remains unverified.
+
+### Owner runtime feedback: stable diagnostic session
+
+- User ran pinned source 08b44d76160265e053e58ab402be7b06ed97ac19 and reported Roblox did not close and did not lag. This confirms observed stability for that session and diagnostic preset, not the default decompilation/hidden-property configuration.
+- Copied BSI_DIAGNOSTIC.log confirms successful source compilation and module initialization. The sampled stage records PROPERTY_PROGRESS on MeshPart.CollisionFidelity after 159113 property reads. A sampled property name is progress evidence, not evidence of a failing property.
+- Supplied log snapshot has no Save completed / SAVE_COMPLETED marker. No BSI_VOLCANO_DIAGNOSTIC.rbxlx was supplied; checked expected workspace-root paths are absent. The files may have been moved/copied by the owner; absence there does not prove save failure.
+- No additional source change is indicated by these logs. Native closure/lag was not reproduced in this owner-reported run. Save completion, exported XML integrity, Studio import and complete Terrain/Union/script fidelity remain unverified.
+- Next evidence: latest BSI_DIAGNOSTIC.log and stage after completion, plus the generated diagnostic export if available. Original runtime logs remain outside Git.
