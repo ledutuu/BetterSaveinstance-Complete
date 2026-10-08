@@ -2776,6 +2776,9 @@ All options are case insensitive.
   - Writes startup phases and sampled property progress to CRASHLOG_<id>_STAGE.txt independently of Crashlog. Property progress is sampled at most twice per second; it may not identify the exact final native call.
   - Does not enable verbose debug output or appendfile logging.
   - Default: false
+- GeometryReport: `boolean`
+  - Writes <FilePath>.geometry.tsv after export with Union/Terrain field states and byte counts, without payload contents. Uses one final write; report errors do not invalidate the export.
+  - Default: false
 - YieldInterval: `number`
   - Maximum cooperative work interval in seconds before yielding. Must be greater than 0 and at most 1. Native calls can exceed this budget.
   - Default: 0.02
@@ -3038,6 +3041,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		APIDumpSource = "auto",
 		Crashlog = false,
 		TraceProgress = false,
+		GeometryReport = false,
 		YieldInterval = 0.02,
 		-- Binary = false, -- true in syn newer versions (false in our case because no binary support yet), Description: Saves everything in Binary Mode (rbxl/rbxm).
 		Callback = false,
@@ -4044,6 +4048,42 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		return table.concat(subStrings, replacement)
 	end
 
+	local geometryFields = {
+		UnionOperation = { "AssetId", "Content", "MeshData", "MeshData2", "ChildData", "ChildData2", "PhysicsData" },
+		IntersectOperation = { "AssetId", "Content", "MeshData", "MeshData2", "ChildData", "ChildData2", "PhysicsData" },
+		NegateOperation = { "AssetId", "Content", "MeshData", "MeshData2", "ChildData", "ChildData2", "PhysicsData" },
+		Terrain = { "SmoothGrid", "PhysicsGrid", "Materials", "VoxelGridAssetContentMap" },
+	}
+	local geometryRecords, geometryOrder = {}, {}
+	local function BeginGeometryReport(instance, className, name)
+		local fields = OPTIONS.GeometryReport and geometryFields[className]
+		if not fields then return end
+		local record = { Ref = getRef(instance), Class = className, Name = name, Fields = fields, States = {} }
+		for _, field in fields do record.States[field] = { "not_in_property_list", 0, 0 } end
+		geometryRecords[instance] = record
+		table.insert(geometryOrder, record)
+	end
+	local function RecordGeometryProperty(instance, field, state, rawBytes, encodedBytes)
+		local record = geometryRecords[instance]
+		if record and record.States[field] then
+			local previous = record.States[field]
+			record.States[field] = { state, rawBytes or previous[2], encodedBytes or 0 }
+		end
+	end
+	local function BuildGeometryReport()
+		local rows = { "referent\tclass\tname\tproperty\tstate\traw_string_bytes\tencoded_bytes" }
+		local function cell(value)
+			return (string.gsub(tostring(value), "[\t\r\n]", " "))
+		end
+		for _, record in geometryOrder do
+			for _, field in record.Fields do
+				local state = record.States[field]
+				table.insert(rows, table.concat({ cell(record.Ref), record.Class, cell(record.Name), field, state[1], tostring(state[2]), tostring(state[3]) }, "\t"))
+			end
+		end
+		return table.concat(rows, "\n") .. "\n"
+	end
+
 	local function filterPropVal(result, propertyName, category) -- ? raw == nil thanks to SerializedDefaultAttributes; "can't get value" - due to WriteOnly tag;  "Invalid value for enum " - "StreamingPauseMode" (old games probably) Roexec
 		return result == nil
 			or result == "can't get value"
@@ -4149,6 +4189,15 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 	local function ReadPropertyFull(instance, Property, PropertyName, Special, Category, Optional)
 		TracePropertyProgress(instance, PropertyName)
 		if Crashlog then Crashlog("  Reading property "..PropertyName) end
+
+		-- Payload/asset reads can fail for one instance and succeed for the next.
+		-- Class metadata is shared, so keep access/fallback failures local to this read.
+		local valueType = Property.ValueType
+		if valueType == "BinaryString" or valueType == "SharedString" or valueType == "Content" or valueType == "ContentId" then
+			Property = table.clone(Property)
+			Property.CanRead = nil
+			Property.GHPFFailed = nil
+		end
 
 		local raw = ReadProperty(instance, Property, PropertyName, Special, Category, Optional)
 
@@ -4491,6 +4540,7 @@ end
 
 			SerializedInstances[instance] = true
 			SerializedReferents[getRef(instance)] = true
+			BeginGeometryReport(instance, ClassTagOverride or ClassName, InstanceName)
 
 			if Crashlog then
 				if firstInstanceLog then TraceStage("FIRST_INSTANCE_FULLNAME_BEGIN") end
@@ -4555,12 +4605,14 @@ end
 						local PropertyName = Property.Name
 
 						if IgnoreProperties[PropertyName] then
+							RecordGeometryProperty(instance, PropertyName, "ignored_property")
 							continue
 						end
 
 						local ValueType = Property.ValueType
 
 						if IgnoreSharedStrings and ValueType == "SharedString" then
+							RecordGeometryProperty(instance, PropertyName, "ignored_shared_string")
 							continue
 						end
 
@@ -4569,13 +4621,16 @@ end
 						local raw = ReadPropertyFull(instance, Property, PropertyName, Special, Category, Optional)
 
 						if raw == __BREAK then
+							RecordGeometryProperty(instance, PropertyName, "unreadable")
 							continue
 						end
+						RecordGeometryProperty(instance, PropertyName, "read", type(raw) == "string" and #raw or 0)
 						-- Serialization start
 
 						-- Missing binary data is the default value. Writing thousands of empty
 						-- BinaryString tags bloats the XML without restoring any geometry.
 						if (ValueType == "BinaryString" or ValueType == "SharedString") and raw == "" then
+							RecordGeometryProperty(instance, PropertyName, "empty")
 							continue
 						end
 
@@ -4617,6 +4672,7 @@ end
 							end
 
 							if default_known[PropertyName] and default_values[PropertyName] == raw then
+								RecordGeometryProperty(instance, PropertyName, "default_filtered")
 								continue
 							end
 						end
@@ -4799,8 +4855,10 @@ end
 
 						if tag then
 							savebuffer[savebuffer_size] = ReturnProperty(tag, PropertyName, value)
+							RecordGeometryProperty(instance, PropertyName, value == "<null></null>" and "serialized_null" or "serialized", nil, type(value) == "string" and #value or 0)
 							savebuffer_size += 1
 						else --if __DEBUG_MODE then -- * We print this anyway because very important
+							RecordGeometryProperty(instance, PropertyName, "unsupported_type")
 							warn("UNSUPPORTED TYPE (OPEN A GITHUB ISSUE): ", ValueType, ClassName, PropertyName)
 						end
 					end
@@ -5517,6 +5575,12 @@ end
 		end
 
 		Cleanup()
+		if OPTIONS.GeometryReport and writefile then
+			local reportOK, reportError = pcall(function()
+				writefile(placename .. ".geometry.tsv", BuildGeometryReport())
+			end)
+			if not reportOK then warn("Geometry report write failed:", reportError) end
+		end
 		TraceStage(ok and "SAVE_COMPLETED" or "SAVE_FAILED")
 
 		elapse_t = os.clock() - elapse_t

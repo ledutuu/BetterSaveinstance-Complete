@@ -12,6 +12,7 @@ Generated harnesses are saved in ignored `build/regressions`. They execute the a
 - Extra: lazy Reflection filters, malformed API cache fallback, optional Content metadata, spinner/AntiIdle cleanup, rendering restoration, global/file lock ownership and initialization errors.
 - Performance: property inheritance order, cache isolation and stop filters, cooperative scheduling.
 - Startup: persistent first-append BEGIN/OK trace, diagnostic option metadata and explicit filename avoidance of Marketplace lookup.
+- Geometry: actual property-reader failure/success sequences for binary/shared/content fields, stale class status, UGC/custom fallback isolation, preserved ordinary property caching and intentional ignores. Companion report checks cover field states, per-instance referents, TSV escaping, byte counts and contained/disabled disk IO.
 
 These checks establish Luau control flow. Native executor crashes, Roblox import, Terrain/Union fidelity in Studio, and full game behavior require separate runtime checks.
 

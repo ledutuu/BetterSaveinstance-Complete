@@ -52,6 +52,7 @@ local ok, err = xpcall(function()
         Crashlog = false,
         __DEBUG_MODE = false,
         TraceProgress = true,
+        GeometryReport = true,
     })
     if saveOK then
         stage("Save completed: MySavedGame_UnionFull.rbxlx; inspect Union/Terrain geometry in Studio")

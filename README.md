@@ -17,6 +17,8 @@ synsaveinstance(Options)
 
 `save-full-volcano.luau` is a separate online client-export preset. It enables hidden geometry and SharedString reads, keeps Unions as UnionOperation, disables default-property filtering, and requests the bundled Konstant decompiler. It disables UI, API disk cache, verbose per-property logging and destructive side effects. It accepts a raw repository-root argument to pin both the preset and main source.
 
+The full preset also writes `MySavedGame_UnionFull.rbxlx.geometry.tsv`: one row per expected Union/Terrain geometry field, matching XML referents. States distinguish unreadable, empty, serialized/null, ignored, unsupported and fields absent from the selected property list (including reflection filtering). Byte counts contain no payload. Binary/shared/asset read failures are isolated to each read so a failure on one instance cannot blacklist later instances. An API dump lists properties; it does not supply missing game geometry. Client streaming and asset access can still limit the export.
+
 The output is `MySavedGame_UnionFull.rbxlx`, with `BSI_FULL_BOOT.log` and sampled `CRASHLOG_<id>_STAGE.txt` progress. `BSI_VOLCANO_DIAGNOSTIC.rbxlx` deliberately omits important hidden geometry and is not a full export. Full native stability and geometry fidelity require a runtime test; the executor must provide working hidden-property and bytecode reads. Server-only data is unavailable to a client export.
 
 # Differences From the Original
@@ -99,6 +101,11 @@ All options are case insensitive.
   - Writes startup phases and sampled property progress to CRASHLOG_<id>_STAGE.txt independently of Crashlog. Property progress is sampled at most twice per second; it may not identify the exact final native call.
   - Does not enable verbose debug output or appendfile logging.
   - Default: false
+- GeometryReport: `boolean`
+  - Writes `<FilePath>.geometry.tsv` after export with Union/Terrain field states and raw-string/encoded byte counts, without payload contents. Uses one final write; report errors do not invalidate the export. On a failed export, states describe partial progress.
+  - `not_in_property_list` means the property loop never visited that field; it does not by itself prove the API dump lacks the property. `serialized` proves the XML property was emitted, not Studio rendering fidelity.
+  - Unions converted to Parts by TreatUnionsAsParts are omitted. The full preset keeps this conversion disabled.
+  - Default: false (true in the full Volcano preset)
 - YieldInterval: `number`
   - Maximum cooperative work interval in seconds before yielding. Must be greater than 0 and at most 1. Native calls can exceed this budget.
   - Default: 0.02
