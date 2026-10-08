@@ -126,4 +126,80 @@ name, calls = exerciseFilename(false, false, true)
 check(name == "place 123.rbxlx" and calls == 1, "metadata failure retains place-ID filename fallback")
 print("PASS: " .. checks .. " startup source-extracted regression assertions")
 '@
-[IO.File]::WriteAllText($Out, $head + "`n" + $crashlog + "`n" + $traceTail + "`n" + $filename + "`n" + $filenameTail)
+$progressHead = @'
+local function exerciseProgressIO(mode)
+    local clockNow = 0
+    local os = {clock = function() return clockNow end}
+    local files, writes = {}, {}
+    local OPTIONS = {
+        TraceProgress = mode ~= "disabled", Crashlog = mode == "fallback",
+        __DEBUG_MODE = false, Decompile = false, ShowStatus = false,
+        IgnoreSpecialProperties = true, DisableReflectionService = true, APICache = false,
+    }
+    local writefile = mode ~= "missing-write" and function(path, content)
+        files[path] = content
+        table.insert(writes, {path = path, content = content})
+    end or nil
+    local appendfile = nil
+    local warnings = 0
+    local warn = function() warnings += 1 end
+    local originalWarn = warn
+    local game = {PlaceId = 123}
+    local service = {HttpService = {GenerateGUID = function() return "progress-guid" end}}
+    local session = {}
+    local EXECUTOR_NAME, FULL_VERSION = "Volcano", "0.742.0.7421053"
+'@
+$progressTail = @'
+    return {
+        files = files, writes = writes, crashlog = Crashlog, debugMode = __DEBUG_MODE,
+        warn = warn, warnings = warnings, originalWarn = originalWarn, trace = TraceStage, property = TracePropertyProgress,
+        setTime = function(value) clockNow = value end,
+    }
+end
+local progressPath = "CRASHLOG_progress-guid_STAGE.txt"
+for _, mode in {"normal", "fallback"} do
+    local state = exerciseProgressIO(mode)
+    check(state.crashlog == false and state.debugMode == false and state.warn == state.originalWarn,
+        "progress-only tracing avoids debug promotion and warn wrapping on " .. mode)
+    check(#state.writes == 1 and state.files["CRASHLOG_progress-guid"] == nil,
+        "progress-only creates stage companion without main Crashlog or appendfile on " .. mode)
+    check(string.find(state.files[progressPath], "TraceProgress=true", 1, true)
+        and string.find(state.files[progressPath], "Decompile=false", 1, true), "progress config persists")
+    state.trace("fixture-progress-stage")
+    check(string.find(state.files[progressPath], "fixture-progress-stage", 1, true)
+        and string.find(state.files[progressPath], "ShowStatus=false", 1, true), "progress stage accepts phase strings and retains config")
+end
+for _, mode in {"disabled", "missing-write"} do
+    local state = exerciseProgressIO(mode)
+    state.trace("ignored")
+    state.property({ClassName = "Part"}, "Ignored")
+    check(#state.writes == 0 and next(state.files) == nil, "disabled/unavailable tracing causes no file IO on " .. mode)
+    check(state.crashlog == false and state.debugMode == false and state.warn == state.originalWarn,
+        "disabled/unavailable tracing preserves debug and warning state on " .. mode)
+    check(state.warnings == (mode == "missing-write" and 1 or 0), "missing-write warning uses original warn")
+end
+local state = exerciseProgressIO("normal")
+local instance = setmetatable({ClassName = "Part"}, {__index = function(_, key)
+    error("Unexpected instance lookup: " .. tostring(key))
+end})
+state.property(instance, "First")
+check(#state.writes == 2 and string.find(state.files[progressPath], "PROPERTY_PROGRESS class=Part property=First reads=1", 1, true),
+    "first property progress writes immediately without GetFullName")
+for i = 1, 200 do state.property(instance, "Burst" .. i) end
+check(#state.writes == 2, "property burst avoids per-property disk writes")
+state.setTime(0.499999)
+state.property(instance, "BeforeBoundary")
+check(#state.writes == 2, "property sampling excludes time before 0.5s")
+state.setTime(0.5)
+state.property(instance, "AtBoundary")
+check(#state.writes == 3 and string.find(state.files[progressPath], "property=AtBoundary", 1, true), "property sampling includes exact 0.5s boundary")
+state.setTime(0.999999)
+state.property(instance, "NextBeforeBoundary")
+check(#state.writes == 3, "property sampling limits successive interval")
+state.setTime(1)
+state.property(instance, "NextBoundary")
+check(#state.writes == 4 and string.find(state.files[progressPath], "property=NextBoundary", 1, true)
+    and string.find(state.files[progressPath], "TraceProgress=true", 1, true), "subsequent sampled property retains latest event and config")
+print("PASS: " .. checks .. " startup assertions including progress tracing")
+'@
+[IO.File]::WriteAllText($Out, $head + "`n" + $crashlog + "`n" + $traceTail + "`n" + $filename + "`n" + $filenameTail + "`n" + $progressHead + "`n" + $crashlog + "`n" + $progressTail)

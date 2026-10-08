@@ -11,7 +11,7 @@ function Slice([string]$start, [string]$end) {
     if ($b -lt 0) { throw "Missing source helper end: $end" }
     return $src.Substring($a, $b - $a)
 }
-$yieldHelpers = Slice "`tlocal lastYield =" "`tlocal LoadingText, LoadingThread, IsLoading"
+$yieldHelpers = Slice "`tlocal yieldInterval =" "`tlocal LoadingText, LoadingThread, IsLoading"
 $inheritedHelpers = Slice "`tlocal inheritedPropertyLists =" "`tlocal function save_cache()"
 $head = @'
 local checks = 0
@@ -71,7 +71,8 @@ check(reader2("Leaf") ~= all, "new save has a fresh list cache")
 sameProperties(reader2("Leaf"), {leaf, mid, base}, "new save retains property order")
 local unknown = inherited("Unknown")
 check(#unknown == 0 and unknown == inherited("Unknown"), "unknown classes cache empty property lists")
-local function makeYieldHelpers(fail)
+local function makeYieldHelpers(fail, interval)
+    local OPTIONS = {YieldInterval = interval}
     local elapsed, waits = 0, 0
     local os = {clock = function() return elapsed end}
     local task = {wait = function()
@@ -93,9 +94,9 @@ check(scheduling.waits() == 0, "fresh helper does not yield immediately")
 scheduling.advance(0.01)
 scheduling.due()
 check(scheduling.waits() == 0, "short work does not yield")
-scheduling.advance(30)
+scheduling.advance(0.01)
 scheduling.due()
-check(scheduling.waits() == 1, "elapsed long work yields cooperatively")
+check(scheduling.waits() == 1, "default interval yields exactly at 0.02 seconds")
 scheduling.due()
 check(scheduling.waits() == 1, "successful yield resets elapsed guard")
 scheduling.advance(30)
@@ -116,6 +117,30 @@ denied.advance(30)
 ok = pcall(denied.due)
 check(ok and denied.waits() == 2, "later protected failure also remains bounded")
 check(makeYieldHelpers(false).waits() == 0, "new save has fresh scheduling state")
+local custom = makeYieldHelpers(false, 0.1)
+custom.advance(0.02)
+custom.due()
+check(custom.waits() == 0, "custom interval overrides default scheduling threshold")
+custom.advance(0.081)
+custom.due()
+check(custom.waits() == 1, "custom interval yields when due")
+custom.due()
+check(custom.waits() == 1, "custom interval resets after yielding")
+local maximum = makeYieldHelpers(false, 1)
+maximum.advance(0.99)
+maximum.due()
+check(maximum.waits() == 0, "maximum valid interval waits until one second")
+maximum.advance(0.011)
+maximum.due()
+check(maximum.waits() == 1, "maximum valid interval yields when due")
+local small = makeYieldHelpers(false, 0.0001)
+small.advance(0.0001)
+small.due()
+check(small.waits() == 1, "small positive interval remains valid")
+for _, invalid in {0, -0.02, 0 / 0, 1.001, "0.02", true, math.huge, -math.huge} do
+    local accepted = pcall(makeYieldHelpers, false, invalid)
+    check(not accepted, "invalid interval is rejected: " .. tostring(invalid))
+end
 print("PASS: " .. checks .. " source-extracted performance regression assertions")
 '@
 [IO.File]::WriteAllText($Out, $head + "`n" + $inheritedHelpers + "`n" + $inheritTail + "`n" + $yieldHelpers + "`n" + $yieldTail)

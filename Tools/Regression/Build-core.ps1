@@ -97,6 +97,7 @@ calls, result = exercise({DecompileJobless = true}, false, false, {["\6data"] = 
 check(calls.fetch == 0 and calls.native == 0 and result == "return 'cached'", "jobless can return cache without a native decompiler")
 local function exerciseCrashlog(hasAppend)
     local OPTIONS = {Crashlog = true, __DEBUG_MODE = false}
+    local session = {}
     local lines = {}
     local warn = function() end
     local originalWarn = warn

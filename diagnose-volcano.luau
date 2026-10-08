@@ -1,7 +1,7 @@
 -- Pass a raw GitHub repository root as a chunk argument to pin a source commit.
 -- Diagnostic export omits decompiled scripts and hidden/shared-string data.
 local log = "BSI_DIAGNOSTIC.log"
-assert(type(writefile) == "function" and type(appendfile) == "function", "writefile and appendfile are required for diagnostic logs")
+assert(type(writefile) == "function", "writefile is required for diagnostic logs")
 local repoRoot = ... or "https://raw.githubusercontent.com/ledutuu/BetterSaveinstance-Complete/refs/heads/main/"
 assert(type(repoRoot) == "string" and string.sub(repoRoot, -1) == "/", "Repository root must end in /")
 local entries = { "BetterSaveinstance diagnostic; 2026-10-08" }
@@ -10,6 +10,7 @@ local function stage(message)
     writefile(log, table.concat(entries, "\n") .. "\n")
     print("[BSI_DIAG] " .. message)
 end
+local function runDiagnostic()
 stage("before downloading source: " .. repoRoot)
 local source = game:HttpGet(repoRoot .. "saveinstance.luau", true)
 stage("before compiling source")
@@ -40,7 +41,10 @@ local callOK, saveOK, err = pcall(saveinstance, {
     NilInstances = false,
     AlternativeWritefile = true,
     FilePath = "BSI_VOLCANO_DIAGNOSTIC.rbxlx",
-    Crashlog = true,
+    Crashlog = false,
+    __DEBUG_MODE = false,
+    TraceProgress = true,
+    YieldInterval = 0.02,
 })
 if not callOK then
     stage("Luau error: " .. tostring(saveOK))
@@ -49,5 +53,8 @@ elseif not saveOK then
 else
     stage("Save completed; check BSI_VOLCANO_DIAGNOSTIC.rbxlx")
 end
+end
+local runOK, runError = xpcall(runDiagnostic, function(message) return debug.traceback(tostring(message)) end)
+if not runOK then stage("Diagnostic Luau error: " .. tostring(runError)) end
 -- pcall cannot recover a native executor/client crash. The final persisted
 -- stage and the last CRASHLOG entry locate the next runtime check.

@@ -19,7 +19,8 @@ synsaveinstance(Options)
 - `Decompile=false` and `noscripts=true` now actually skip decompilation, custom decompiler loading, and compilation-error bytecode reads. Explicit `SaveBytecode` options still request bytecode.
 - Loads Konstant from this repository and handles a failed download without aborting save initialization.
 - LinkedSource recovery uses Roblox's official raw-content endpoint and preserves an explicit asset version. A newer API route is not evidence that an asset itself is a newer version.
-- See `diagnose-volcano.luau` for an online diagnostic preset. It accepts an optional raw repository-root argument to pin the source commit, writes startup stages without relying on appendfile, and disables ReflectionService and API disk caching. It omits decompiled scripts and hidden/shared-string data and is not a full-fidelity Terrain/Union export. Native Volcano crash resolution still requires a runtime retest.
+- Executor helper discovery is local, prefers exact function names, limits table traversal to depth 10, handles cycles, and yields during long searches. It no longer downloads a MethodFinder that probes depth by overflowing the stack.
+- See `bootstrap-volcano.luau` for a bootstrap that logs before downloading the online `diagnose-volcano.luau` preset. It accepts an optional raw repository-root argument to pin the source commit, writes startup stages without relying on appendfile, uses TraceProgress with Crashlog=false, and disables ReflectionService and API disk caching. Startup stages cover module loading; sampled property stages are progress indicators rather than exact native-call traces. It omits decompiled scripts and hidden/shared-string data and is not a full-fidelity Terrain/Union export. Native Volcano crash resolution still requires a runtime retest.
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
 - Reduced peak memory usage by keeping serialized output in independent chunks and joining it only when a single output string is required.
 - Skips empty BinaryString/SharedString properties and filters readable hidden properties that match their class defaults. Non-empty Terrain, Union, and MeshPart data is preserved.
@@ -87,6 +88,13 @@ All options are case insensitive.
   - Logs every instance saved and property read to a file. Useful for debugging crashes.
   - Also writes `CRASHLOG_<id>_STAGE.txt` with the last startup/API/output phase, using small writefile calls. The first appendfile call has separate BEGIN/OK markers. Log timestamps use os.clock seconds.
   - Default: false
+- TraceProgress: `boolean`
+  - Writes startup phases and sampled property progress to CRASHLOG_<id>_STAGE.txt independently of Crashlog. Property progress is sampled at most twice per second; it may not identify the exact final native call.
+  - Does not enable verbose debug output or appendfile logging.
+  - Default: false
+- YieldInterval: `number`
+  - Maximum cooperative work interval in seconds before yielding. Must be greater than 0 and at most 1. Native calls can exceed this budget.
+  - Default: 0.02
 - ReadMe: `boolean`
   - Includes a script parented to game in the file, containing credits, fixes, and the options used to generate the file.
   - Default: true

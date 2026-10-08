@@ -51,31 +51,80 @@ local service = setmetatable({}, {
 	end,
 })
 
-local global_container
-do
-	local filename = "UniversalMethodFinder"
-
-	local finder
-	finder, global_container = loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/luau/SomeHub/main/" .. filename .. ".luau", true),
-		filename
-	)()
-
-	finder({
-		-- request = 'string.find(...,"request",nil,true) and not string.find(...,"internal",nil,true)',
-		base64encode = 'local a={...}local b=a[1]local function c(a,b)return string.find(a,b,nil,true)end;return c(b,"encode")and(c(b,"base64")or c(string.lower(tostring(a[2])),"base64"))',
-		-- cloneref = 'string.find(...,"clone",nil,true) and string.find(...,"ref",nil,true)',
-		-- decompile = '(string.find(...,"decomp",nil,true) and string.sub(...,#...) ~= "s")',
-		gethiddenproperty = 'string.find(...,"get",nil,true) and string.find(...,"h",nil,true) and string.find(...,"prop",nil,true) and string.sub(...,#...) ~= "s"',
-		gethui = 'string.find(...,"get",nil,true) and string.find(...,"h",nil,true) and string.find(...,"ui",nil,true)',
-		-- getcon = 'string.find(...,"get",nil,true) and (string.find(...,"conn",nil,true) or string.find(...,"sig",nil,true)) and string.sub(...,#(...))=="s"',
-		getnilinstances = 'string.find(...,"nil",nil,true) and string.find(...,"get",nil,true) and string.sub(...,#...) == "s"', -- ! Could match some unwanted stuff
-		getscriptbytecode = 'string.find(...,"get",nil,true) and string.find(...,"script",nil,true) and string.find(...,"bytecode",nil,true)', --  or string.find(...,"dump",nil,true) and string.find(...,"string",nil,true) due to Fluxus (dumpstring returns a function)
-		-- hash = 'local a={...}local b=a[1]local function c(a,b)return string.find(a,b,nil,true)end;return c(b,"hash")and c(string.lower(tostring(a[2])),"crypt")',
-		protectgui = 'string.find(...,"protect",nil,true) and string.find(...,"ui",nil,true) and not string.find(...,"un",nil,true)',
-		-- setthreadidentity = 'string.find(...,"identity",nil,true) and string.find(...,"set",nil,true)',
-	}, true, 10)
+-- Resolve executor helpers locally with a bounded search. Avoid the remote
+-- MethodFinder's initialization probe that deliberately exhausts the stack.
+local function resolveExecutorFunctions()
+    local resolved, roots, visited = {}, {}, {}
+    local methods = { "base64encode", "gethiddenproperty", "gethui", "getnilinstances", "getscriptbytecode", "protectgui" }
+    local function addRoot(value)
+        if type(value) == "table" then table.insert(roots, value) end
+    end
+    if getgenv then
+        local ok, env = pcall(getgenv)
+        if ok then addRoot(env) end
+    end
+    if getfenv then
+        local ok, env = pcall(getfenv)
+        if ok then addRoot(env) end
+    end
+    addRoot(shared)
+    addRoot(_G)
+    for _, env in roots do
+        for _, method in methods do
+            if not resolved[method] then
+                local ok, value = pcall(function() return env[method] end)
+                if ok and type(value) == "function" then resolved[method] = value end
+            end
+        end
+    end
+    local function has(value, fragment)
+        return string.find(value, fragment, 1, true) ~= nil
+    end
+    local function matches(method, name, envName)
+        local plural = string.sub(name, -1) == "s"
+        if method == "base64encode" then
+            return has(name, "encode") and (has(name, "base64") or has(envName, "base64"))
+        elseif method == "gethiddenproperty" then
+            return has(name, "get") and has(name, "h") and has(name, "prop") and not plural
+        elseif method == "gethui" then
+            return has(name, "get") and has(name, "h") and has(name, "ui")
+        elseif method == "getnilinstances" then
+            return has(name, "nil") and has(name, "get") and plural
+        elseif method == "getscriptbytecode" then
+            return has(name, "get") and has(name, "script") and has(name, "bytecode")
+        elseif method == "protectgui" then
+            return has(name, "protect") and has(name, "ui") and not has(name, "un")
+        end
+        return false
+    end
+    local lastYield = os.clock()
+    local function walk(env, envName, depth)
+        if visited[env] and visited[env] <= depth then return end
+        visited[env] = depth
+        for key, value in next, env do
+            local complete = true
+            for _, method in methods do
+                if not resolved[method] then complete = false; break end
+            end
+            if complete then return end
+            if os.clock() - lastYield >= 0.02 then
+                if task and task.wait then pcall(task.wait) end
+                lastYield = os.clock()
+            end
+            local name = type(key) == "string" and string.lower(key) or ""
+            if type(value) == "table" and depth < 10 then
+                walk(value, name, depth + 1)
+            elseif type(value) == "function" then
+                for _, method in methods do
+                    if not resolved[method] and matches(method, name, envName) then resolved[method] = value end
+                end
+            end
+        end
+    end
+    for _, env in roots do walk(env, "", 1) end
+    return resolved
 end
+local global_container = resolveExecutorFunctions()
 
 local identify_executor = identifyexecutor or getexecutorname or whatexecutor
 
@@ -2703,6 +2752,13 @@ All options are case insensitive.
   - Logs every instance saved and property read to a file. Useful for debugging crashes.
   - Also writes CRASHLOG_<id>_STAGE.txt with the last startup/API/output phase; timestamps use os.clock seconds.
   - Default: false
+- TraceProgress: `boolean`
+  - Writes startup phases and sampled property progress to CRASHLOG_<id>_STAGE.txt independently of Crashlog. Property progress is sampled at most twice per second; it may not identify the exact final native call.
+  - Does not enable verbose debug output or appendfile logging.
+  - Default: false
+- YieldInterval: `number`
+  - Maximum cooperative work interval in seconds before yielding. Must be greater than 0 and at most 1. Native calls can exceed this budget.
+  - Default: 0.02
 - ReadMe: `boolean`
   - Includes a script parented to game in the file, containing credits, fixes, and the options used to generate the file.
   - Default: true
@@ -2954,6 +3010,8 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		DisableReflectionService = false,
 		APICache = true,
 		Crashlog = false,
+		TraceProgress = false,
+		YieldInterval = 0.02,
 		-- Binary = false, -- true in syn newer versions (false in our case because no binary support yet), Description: Saves everything in Binary Mode (rbxl/rbxm).
 		Callback = false,
 		--Clipboard/CopyToClipboard = false, -- Description: If set to true, the serialized data will be set to the clipboard, which can be later pasted into studio easily. Useful for saving models. (Binary Only)
@@ -3272,45 +3330,64 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 
 	local Crashlog = OPTIONS.Crashlog
 	local TraceStage = function() end
+	local TracePropertyProgress = function() end
 	local __DEBUG_MODE = OPTIONS.__DEBUG_MODE
 	local old_warn
 
-	if Crashlog then
-		if writefile and appendfile then
-			__DEBUG_MODE = true
+	if Crashlog or OPTIONS.TraceProgress then
+		local canCrashlog = Crashlog and writefile and appendfile
+		if canCrashlog or (OPTIONS.TraceProgress and writefile) then
 			local CRASHLOG_ID = service.HttpService:GenerateGUID(false)
-			writefile("CRASHLOG_"..CRASHLOG_ID, "BetterSaveinstance crashlog (id:"..CRASHLOG_ID..", placeid:"..tostring(game.PlaceId)..") below")
 			local stageHeader = "executor=" .. tostring(EXECUTOR_NAME) .. " client=" .. tostring(FULL_VERSION)
 				.. " Decompile=" .. tostring(OPTIONS.Decompile) .. " ShowStatus=" .. tostring(OPTIONS.ShowStatus)
 				.. " IgnoreSpecialProperties=" .. tostring(OPTIONS.IgnoreSpecialProperties)
 				.. " DisableReflectionService=" .. tostring(OPTIONS.DisableReflectionService)
 				.. " APICache=" .. tostring(OPTIONS.APICache)
+				.. " TraceProgress=" .. tostring(OPTIONS.TraceProgress or false)
 			TraceStage = function(stage)
 				writefile("CRASHLOG_" .. CRASHLOG_ID .. "_STAGE.txt", stageHeader .. "\n" .. tostring(os.clock()) .. " " .. stage)
 			end
 			TraceStage("CRASHLOG_READY")
-			local firstAppend = true
-			Crashlog = function(text)
-				if firstAppend then TraceStage("APPENDFILE_BEGIN " .. text) end
-				appendfile("CRASHLOG_"..CRASHLOG_ID, "\n ["..tostring(os.clock()).."] "..text)
-				if firstAppend then
-					firstAppend = false
-					TraceStage("APPENDFILE_OK")
+			session.trace = TraceStage
+			if OPTIONS.TraceProgress then
+				local lastProgress, propertyReads = -math.huge, 0
+				TracePropertyProgress = function(instance, propertyName)
+					propertyReads += 1
+					local now = os.clock()
+					if now - lastProgress >= 0.5 then
+						lastProgress = now
+						TraceStage("PROPERTY_PROGRESS class=" .. instance.ClassName .. " property=" .. propertyName .. " reads=" .. propertyReads)
+					end
 				end
 			end
-			old_warn = warn
-			warn = function(...)
-				old_warn(...)
-				local parts = table.create(select("#", ...))
-				for i = 1, select("#", ...) do
-					parts[i] = tostring(select(i, ...))
+			if canCrashlog then
+				__DEBUG_MODE = true
+				writefile("CRASHLOG_"..CRASHLOG_ID, "BetterSaveinstance crashlog (id:"..CRASHLOG_ID..", placeid:"..tostring(game.PlaceId)..") below")
+				local firstAppend = true
+				Crashlog = function(text)
+					if firstAppend then TraceStage("APPENDFILE_BEGIN " .. text) end
+					appendfile("CRASHLOG_"..CRASHLOG_ID, "\n ["..tostring(os.clock()).."] "..text)
+					if firstAppend then
+						firstAppend = false
+						TraceStage("APPENDFILE_OK")
+					end
 				end
-				local text = table.concat(parts, " ")
-				Crashlog(text)
+				old_warn = warn
+				warn = function(...)
+					old_warn(...)
+					local parts = table.create(select("#", ...))
+					for i = 1, select("#", ...) do
+						parts[i] = tostring(select(i, ...))
+					end
+					local text = table.concat(parts, " ")
+					Crashlog(text)
+				end
+			else
+				Crashlog = false
 			end
 		else
 			Crashlog = false
-			warn("The functions writefile and appendfile are required for option Crashlog")
+			warn("TraceProgress requires writefile; Crashlog requires writefile and appendfile")
 		end
 	end
 
@@ -3608,6 +3685,8 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		return Size
 	end
 
+	local yieldInterval = OPTIONS.YieldInterval or 0.02
+	assert(type(yieldInterval) == "number" and yieldInterval > 0 and yieldInterval <= 1, "YieldInterval must be a number in (0, 1]")
 	local lastYield = os.clock()
 	local function wait_for_render()
 		-- Yield through the task scheduler, including when rendering is disabled.
@@ -3615,7 +3694,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		lastYield = os.clock()
 	end
 	local function yieldIfDue()
-		if os.clock() - lastYield >= 1 then
+		if os.clock() - lastYield >= yieldInterval then
 			wait_for_render()
 		end
 	end
@@ -4037,6 +4116,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 	end
 
 	local function ReadPropertyFull(instance, Property, PropertyName, Special, Category, Optional)
+		TracePropertyProgress(instance, PropertyName)
 		if Crashlog then Crashlog("  Reading property "..PropertyName) end
 
 		local raw = ReadProperty(instance, Property, PropertyName, Special, Category, Optional)
@@ -5461,6 +5541,7 @@ local function synsaveinstance(CustomOptions, CustomOptions2)
 	gethiddenproperty_fallback = nil
 	GLOBAL_ENV.USSI = nil
 	if not ok then
+		if session.trace then pcall(session.trace, "SAVE_INITIALIZATION_FAILED " .. tostring(result)) end
 		warn("Saveinstance initialization failed:", result)
 		return false, result
 	end

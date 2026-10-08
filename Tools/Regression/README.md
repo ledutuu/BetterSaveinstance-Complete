@@ -14,3 +14,5 @@ Generated harnesses are saved in ignored `build/regressions`. They execute the a
 - Startup: persistent first-append BEGIN/OK trace, diagnostic option metadata and explicit filename avoidance of Marketplace lookup.
 
 These checks establish Luau control flow. Native executor crashes, Roblox import, Terrain/Union fidelity in Studio, and full game behavior require separate runtime checks.
+
+Discovery tests exercise actual local executor-function search: canonical priority, alias compatibility, depth and cycle handling, shared roots, hostile keys, cooperative scheduling, and no helper invocation. Startup tests also verify progress-only logging without appendfile and exact 0.5-second sampling boundaries.
