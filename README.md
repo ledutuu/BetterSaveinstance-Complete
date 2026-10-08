@@ -10,10 +10,16 @@ local Params = {
  SSI = "saveinstance",
 }
 local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
-local Options = {} -- Documentation here: https://github.com/Devraj2010isme/BetterSaveinstance/blob/main/README.md
+local Options = {} -- Documentation here: https://github.com/ledutuu/BetterSaveinstance-Complete/blob/main/README.md
 synsaveinstance(Options)
 ```
 # Differences From the Original
+- Integrates selected robustness improvements from UniversalSynSaveInstance `089986506e7ab9c50d7065d48b36e3bfbd5f78d7`: cooperative task scheduling, per-save inherited property caches, correct namespaced script-cache reuse, and cache-only decompilation behavior.
+- Default `SafeMode` and `KillAllScripts` are false. `SafeMode=true` intentionally disconnects the player; `KillAllScripts=true` invokes native thread/hook operations and can destabilize an executor.
+- `Decompile=false` and `noscripts=true` now actually skip decompilation, custom decompiler loading, and compilation-error bytecode reads. Explicit `SaveBytecode` options still request bytecode.
+- Loads Konstant from this repository and handles a failed download without aborting save initialization.
+- LinkedSource recovery uses Roblox's official raw-content endpoint and preserves an explicit asset version. A newer API route is not evidence that an asset itself is a newer version.
+- See `diagnose-volcano.luau` for a local diagnostic preset. It omits decompiled scripts and hidden/shared-string data and is not a full-fidelity Terrain/Union export. Native Volcano crash resolution still requires a runtime retest.
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
 - Reduced peak memory usage by keeping serialized output in independent chunks and joining it only when a single output string is required.
 - Skips empty BinaryString/SharedString properties and filters readable hidden properties that match their class defaults. Non-empty Terrain, Union, and MeshPart data is preserved.
@@ -21,6 +27,8 @@ synsaveinstance(Options)
 - Saves reachable reference targets in a dedicated `Referenced Instances` folder and converts targets that remain unavailable to `null`, preventing dangling referents in Studio.
 - Avoids serializing the Players service twice when `IsolatePlayers` is combined with `mode = "full"`.
 - Warns when an unknown option is supplied instead of silently ignoring it (for example, `DecompileMesh` is not a supported option).
+- Canonical options take precedence over aliases regardless of table order, including `Decompile` over `noscripts` and `DecompileTimeout` over `timeout`.
+- Serializes save calls and releases locks and listeners on Luau initialization errors. Returns `true` on completed save or `false, error` on failure; native crashes cannot be caught by Luau.
 - Custom Decompiler (decomptype)
     - Uses a locally hosted version of Konstant 2.1 for blazingly fast speed
     - Enabled when there is no decompiler, or with the option decomptype = "custom"
@@ -84,6 +92,9 @@ All options are case insensitive.
 - SafeMode: `boolean`
   - Kicks you before Saving, which prevents you from being detected in any game.
   - Default: false
+- KillAllScripts: `boolean`
+  - Closes game threads and hooks game functions. These native executor calls can destabilize the client; enable only explicitly when needed.
+  - Default: false
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
   - Default: true if executor gethiddenproperty is available and passes tests and the executor isn't Nihon, false otherwise
@@ -130,7 +141,7 @@ All options are case insensitive.
   - Default: true
 - decomptype: `string`
   - "custom" - for a built-in custom decompiler.
-  - Uses Konstant 2.1, locally hosted instead of the API to increase speed. ([Konstant Discord Server](https://discord.gg/brNTY8nX8t), [Konstant Decompiled Source Code](https://raw.githubusercontent.com/Devraj2010isme/BetterSaveinstance/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
+  - Uses the bundled Konstant 2.1. ([Konstant Decompiled Source Code](https://raw.githubusercontent.com/ledutuu/BetterSaveinstance-Complete/refs/heads/main/Dependencies/Konstant%20V2.1.luau))
   - Default: Your executor's decompiler, if available. Otherwise uses "custom" if not.
 - DecompileTimeout: `number`
   - If the decompilation run time exceeds this value it gets cancelled.
@@ -149,7 +160,7 @@ All options are case insensitive.
   -  Default: false
 - SaveCompilationErrors: `boolean`
   - If a script fails to compile, this option saves the compilation error in the script instead of trying to pass it to the decompiler (or savebytecode), which will always result in a fail.
-  - Also applies when decompilation is disabled
+  - Skipped when Decompile is false or DecompileJobless is true, to avoid unnecessary native bytecode reads.
   - Default: true
 - SaveBytecodeIfDecompilerFails: `boolean`
   - Includes bytecode in the output ONLY in these cases: if the decompiler fails (works on most decompilers), if noscripts is enabled, or if the decompiler isn't found. Useful if you wish to be able to decompile it yourself later.
