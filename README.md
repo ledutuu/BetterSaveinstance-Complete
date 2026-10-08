@@ -19,7 +19,7 @@ synsaveinstance(Options)
 - `Decompile=false` and `noscripts=true` now actually skip decompilation, custom decompiler loading, and compilation-error bytecode reads. Explicit `SaveBytecode` options still request bytecode.
 - Loads Konstant from this repository and handles a failed download without aborting save initialization.
 - LinkedSource recovery uses Roblox's official raw-content endpoint and preserves an explicit asset version. A newer API route is not evidence that an asset itself is a newer version.
-- See `diagnose-volcano.luau` for a local diagnostic preset. It omits decompiled scripts and hidden/shared-string data and is not a full-fidelity Terrain/Union export. Native Volcano crash resolution still requires a runtime retest.
+- See `diagnose-volcano.luau` for an online diagnostic preset. It accepts an optional raw repository-root argument to pin the source commit, writes startup stages without relying on appendfile, and disables ReflectionService and API disk caching. It omits decompiled scripts and hidden/shared-string data and is not a full-fidelity Terrain/Union export. Native Volcano crash resolution still requires a runtime retest.
 - Fixed gethiddenproperty, in the original it uses UGCValidationService:GetPropertyValue instead. (Allows for terrain to save)
 - Reduced peak memory usage by keeping serialized output in independent chunks and joining it only when a single output string is required.
 - Skips empty BinaryString/SharedString properties and filters readable hidden properties that match their class defaults. Non-empty Terrain, Union, and MeshPart data is preserved.
@@ -85,6 +85,7 @@ All options are case insensitive.
   - Default: false
 - Crashlog: `boolean`
   - Logs every instance saved and property read to a file. Useful for debugging crashes.
+  - Also writes `CRASHLOG_<id>_STAGE.txt` with the last startup/API/output phase, using small writefile calls. The first appendfile call has separate BEGIN/OK markers. Log timestamps use os.clock seconds.
   - Default: false
 - ReadMe: `boolean`
   - Includes a script parented to game in the file, containing credits, fixes, and the options used to generate the file.
@@ -98,6 +99,12 @@ All options are case insensitive.
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
   - Default: true if executor gethiddenproperty is available and passes tests and the executor isn't Nihon, false otherwise
+- DisableReflectionService: `boolean`
+  - Skips ReflectionService API fallback and supplementary Content metadata reads. Useful for isolating native startup failures; supplementary metadata may be unavailable.
+  - Default: false
+- APICache: `boolean`
+  - Reads and writes the API_DUMP.json disk cache. Set false to isolate native disk-cache reads/writes; network/API fallback still runs.
+  - Default: true
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false

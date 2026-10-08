@@ -39,3 +39,13 @@
 - Scoped publication includes source copies, README, diagnostic runner, regression tools and this worklog. Generated harnesses, bundled CLI downloads, scratch files and output archives are excluded.
 - Removed the performance builder's unused standalone -Run switch, which pointed to a non-distributed CLI path; use Tools/Regression/Run.ps1 with explicit -LuauCLI instead.
 - Native Volcano crash and Studio fidelity remain unverified runtime gates. Publishing these source fixes is not runtime acceptance.
+
+### Header-only Volcano runtime log follow-up
+
+- User supplied a 100-byte CRASHLOG containing only its creation header and confirmed the diagnostic CustomOptions (Decompile=false, ShowStatus=false, hidden fallback off). No property/instance entry is present; this does not isolate the failing native call because the first append and full-name construction occur before an entry is persisted.
+- Remaining startup calls include Marketplace metadata, API cache native reads/writes, Reflection API fallback and supplementary Content-property reflection. No single one is confirmed as the cause. AlternativeWritefile affected output export, not the single API cache write.
+- Added opt-in last-stage companion CRASHLOG_<id>_STAGE.txt using small writefile calls, retaining executor/client/options metadata on every update. Stages cover product lookup, root/filename preparation, decompiler setup, player subscriptions, each API fetcher, API cache encode/write, Content reflection, first hierarchy/full-name/log evaluation and output writes. First append has BEGIN/OK markers; logger timestamps now use os.clock and avoid DateTime native calls.
+- Added DisableReflectionService=false and APICache=true options. Updated diagnostic preset to disable both and use an explicit filename, which now skips irrelevant Marketplace lookup. Normal defaults preserve prior API/cache behavior.
+- Online diagnostic runner accepts a raw repository root to pin an immutable source commit and writes its small startup log using writefile before module initialization; no local source copy is required.
+- Verification: 43 core + 123 lifecycle/API + 46 performance + 33 startup assertions pass (245 total). Tests cover persistent BEGIN after mocked append failure, metadata preservation, Reflection/cache optouts, and explicit/default filename behavior. Source and diagnostic runner compile; source copies synchronized.
+- Original user log stays outside the repository and is not published. Runtime crash remains unresolved pending new BSI_DIAGNOSTIC.log, CRASHLOG and matching _STAGE.txt evidence. Prior user authorization to commit/push the scoped repair remains in effect; publish diagnostics without claiming native crash acceptance.

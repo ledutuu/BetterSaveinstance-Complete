@@ -1,15 +1,17 @@
--- Run with this patched saveinstance.luau in the executor's workspace.
+-- Pass a raw GitHub repository root as a chunk argument to pin a source commit.
 -- Diagnostic export omits decompiled scripts and hidden/shared-string data.
 local log = "BSI_DIAGNOSTIC.log"
-assert(type(readfile) == "function", "Place patched saveinstance.luau in the executor workspace; readfile is required")
 assert(type(writefile) == "function" and type(appendfile) == "function", "writefile and appendfile are required for diagnostic logs")
-writefile(log, "BetterSaveinstance diagnostic; 2026-10-08\n")
+local repoRoot = ... or "https://raw.githubusercontent.com/ledutuu/BetterSaveinstance-Complete/refs/heads/main/"
+assert(type(repoRoot) == "string" and string.sub(repoRoot, -1) == "/", "Repository root must end in /")
+local entries = { "BetterSaveinstance diagnostic; 2026-10-08" }
 local function stage(message)
-    appendfile(log, tostring(os.clock()) .. " " .. message .. "\n")
+    table.insert(entries, tostring(os.clock()) .. " " .. message)
+    writefile(log, table.concat(entries, "\n") .. "\n")
     print("[BSI_DIAG] " .. message)
 end
-stage("before reading patched source")
-local source = readfile("saveinstance.luau")
+stage("before downloading source: " .. repoRoot)
+local source = game:HttpGet(repoRoot .. "saveinstance.luau", true)
 stage("before compiling source")
 local compiled, compileError = loadstring(source, "BetterSaveinstance diagnostic")
 assert(compiled, compileError)
@@ -30,6 +32,8 @@ local callOK, saveOK, err = pcall(saveinstance, {
     SaveBytecodeIfDecompilerFails = false,
     IgnoreSpecialProperties = true,
     DisableGethiddenpropertyFallback = true,
+    DisableReflectionService = true,
+    APICache = false,
     IgnoreSharedStrings = true,
     IgnoreSpecialStrings = true,
     IgnoreSpecialClassProperties = true,

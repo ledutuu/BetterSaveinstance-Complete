@@ -66,6 +66,7 @@ local function exercise(input, native, failFetch, seedCache)
     local GLOBAL_ENV = {decompile = "preserved"}
     local __DEBUG_MODE = false
     local Crashlog = false
+    local TraceStage = function() end
     local warn = function() calls.warning += 1 end
     local ldeccache = seedCache or {}
     local ldecompile, CompilationError

@@ -2192,7 +2192,7 @@ do
 
 	NotScriptableFixes.Workspace.CollisionGroupData = NotScriptableFixes.WorldRoot.CollisionGroupData -- TODO Remove once v732 goes live
 
-	FetchAPI = function()
+	FetchAPI = function(traceStage, disableReflectionService, useAPICache)
 		-- Credits @MaximumADHD
 
 		local FILE_NAME = "API_DUMP.json"
@@ -2210,6 +2210,7 @@ do
 		-- ! exact version match is preferred, mismatched dump versions might result in saveinstance trying to save properties that your client doesn't have yet
 		local APIDUMP_FETCHERS = {
 			[1] = function()
+				if useAPICache == false then return false end
 				local res = readfile(FILE_NAME)
 				if res and res ~= "" then
 					return service.HttpService:JSONDecode(res)[FULL_VERSION]
@@ -2338,6 +2339,7 @@ do
 				return dump
 			end,
 			[3] = function()
+				if disableReflectionService then return false end
 				-- Build this only inside the protected ReflectionService fallback.
 				local filter = getReflectionFilter()
 				-- ! Some executors (like Xeno) error on ReflectionService.GetClasses due to their ProxyService
@@ -2444,13 +2446,18 @@ do
 		}
 
 		for i, fetcher in APIDUMP_FETCHERS do
+			if traceStage then traceStage("API_FETCHER_" .. i .. "_BEGIN") end
 			local o, r = pcall(fetcher)
+			if traceStage then traceStage("API_FETCHER_" .. i .. "_END ok=" .. tostring(o)) end
 			if o and type(r) == "table" and #r > 0 then
 				API_Dump = r
 				if i == 2 then -- relies on [2] being the same
-					if writefile then
-						local ok, err =
-							pcall(writefile, FILE_NAME, service.HttpService:JSONEncode({ [FULL_VERSION] = API_Dump }))
+					if writefile and useAPICache ~= false then
+						if traceStage then traceStage("API_CACHE_ENCODE_BEGIN") end
+						local encoded = service.HttpService:JSONEncode({ [FULL_VERSION] = API_Dump })
+						if traceStage then traceStage("API_CACHE_WRITE_BEGIN bytes=" .. #encoded) end
+						local ok, err = pcall(writefile, FILE_NAME, encoded)
+						if traceStage then traceStage("API_CACHE_WRITE_END ok=" .. tostring(ok)) end
 						if not ok then
 							warn("[DEBUG] DUMP writefile error", err)
 						end
@@ -2464,6 +2471,7 @@ do
 		end
 
 		assert(type(API_Dump) == "table" and #API_Dump > 0, "No usable Roblox API dump was available")
+		if traceStage then traceStage("API_SCHEMA_BEGIN") end
 		local classList = {}
 		local tmp_classDict = {}
 
@@ -2539,9 +2547,14 @@ do
 							if not ContentProperties then
 								ContentProperties = {}
 
-								local o, properties = pcall(function()
-									return service.ReflectionService:GetPropertiesOfClass(ClassName, getReflectionFilter())
-								end) -- Service lookup and filter construction must also be protected.
+								local o, properties = false, nil
+								if not disableReflectionService then
+									if traceStage then traceStage("CONTENT_REFLECTION_BEGIN class=" .. ClassName) end
+									o, properties = pcall(function()
+										return service.ReflectionService:GetPropertiesOfClass(ClassName, getReflectionFilter())
+									end) -- Service lookup and filter construction must also be protected.
+									if traceStage then traceStage("CONTENT_REFLECTION_END class=" .. ClassName .. " ok=" .. tostring(o)) end
+								end
 								if o then
 									for _, property in properties do -- * might as well check all properties, not just Content type
 										ContentProperties[property.Name] = property.Serialized
@@ -2688,6 +2701,7 @@ All options are case insensitive.
   - Default: false
 - Crashlog: `boolean`
   - Logs every instance saved and property read to a file. Useful for debugging crashes.
+  - Also writes CRASHLOG_<id>_STAGE.txt with the last startup/API/output phase; timestamps use os.clock seconds.
   - Default: false
 - ReadMe: `boolean`
   - Includes a script parented to game in the file, containing credits, fixes, and the options used to generate the file.
@@ -2701,6 +2715,12 @@ All options are case insensitive.
 - DisableGethiddenpropertyFallback: `boolean`
   - Prevents detections in some games
   - Default: true if executor gethiddenproperty is available and passes tests and the executor isn't Nihon, false otherwise
+- DisableReflectionService: `boolean`
+  - Skips ReflectionService API fallback and supplementary Content metadata reads.
+  - Default: false
+- APICache: `boolean`
+  - Controls reads/writes of API_DUMP.json. Set false to isolate native cache failures.
+  - Default: true
 - ShutdownWhenDone: `boolean`
   - Shuts the game down after saveinstance is finished.
   - Default: false
@@ -2931,6 +2951,8 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		-- * New:
 		__DEBUG_MODE = false,
 		DisableGethiddenpropertyFallback = (gethiddenproperty and EXECUTOR_NAME ~= "Nihon") or false,
+		DisableReflectionService = false,
+		APICache = true,
 		Crashlog = false,
 		-- Binary = false, -- true in syn newer versions (false in our case because no binary support yet), Description: Saves everything in Binary Mode (rbxl/rbxm).
 		Callback = false,
@@ -3249,6 +3271,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		ArrayToDict(OPTIONS.NotCreatableFixes, true, "Folder")
 
 	local Crashlog = OPTIONS.Crashlog
+	local TraceStage = function() end
 	local __DEBUG_MODE = OPTIONS.__DEBUG_MODE
 	local old_warn
 
@@ -3257,8 +3280,23 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 			__DEBUG_MODE = true
 			local CRASHLOG_ID = service.HttpService:GenerateGUID(false)
 			writefile("CRASHLOG_"..CRASHLOG_ID, "BetterSaveinstance crashlog (id:"..CRASHLOG_ID..", placeid:"..tostring(game.PlaceId)..") below")
+			local stageHeader = "executor=" .. tostring(EXECUTOR_NAME) .. " client=" .. tostring(FULL_VERSION)
+				.. " Decompile=" .. tostring(OPTIONS.Decompile) .. " ShowStatus=" .. tostring(OPTIONS.ShowStatus)
+				.. " IgnoreSpecialProperties=" .. tostring(OPTIONS.IgnoreSpecialProperties)
+				.. " DisableReflectionService=" .. tostring(OPTIONS.DisableReflectionService)
+				.. " APICache=" .. tostring(OPTIONS.APICache)
+			TraceStage = function(stage)
+				writefile("CRASHLOG_" .. CRASHLOG_ID .. "_STAGE.txt", stageHeader .. "\n" .. tostring(os.clock()) .. " " .. stage)
+			end
+			TraceStage("CRASHLOG_READY")
+			local firstAppend = true
 			Crashlog = function(text)
-				appendfile("CRASHLOG_"..CRASHLOG_ID, "\n ["..tostring(DateTime.now().UnixTimestampMillis).."] "..text)
+				if firstAppend then TraceStage("APPENDFILE_BEGIN " .. text) end
+				appendfile("CRASHLOG_"..CRASHLOG_ID, "\n ["..tostring(os.clock()).."] "..text)
+				if firstAppend then
+					firstAppend = false
+					TraceStage("APPENDFILE_OK")
+				end
 			end
 			old_warn = warn
 			warn = function(...)
@@ -3280,6 +3318,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		__DEBUG_MODE = warn
 	end
 
+	TraceStage("PLAYER_OPTIONS_BEGIN")
 	local LP_UserId, LP_Name, ANON_UserId, ANON_Name, AnonymizableTypes
 
 	do
@@ -3363,6 +3402,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 
 	do
 		local mode = OPTIONS.mode
+		TraceStage("ROOT_AND_FILENAME_BEGIN")
 		local modetype = type(mode) -- if mode is a table of strings then it is a custom mode
 		if modetype == "string" then
 			mode = string.lower(mode)
@@ -3371,9 +3411,13 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 
 		local PlaceName = game.PlaceId
 
-		pcall(function()
-			PlaceName ..= " " .. service.MarketplaceService:GetProductInfoAsync(PlaceName).Name
-		end)
+		if not FilePath then
+			TraceStage("PRODUCT_INFO_BEGIN")
+			pcall(function()
+				PlaceName ..= " " .. service.MarketplaceService:GetProductInfoAsync(PlaceName).Name
+			end)
+			TraceStage("PRODUCT_INFO_END")
+		end
 
 		local function sanitizeFileName(str)
 			return string.sub(string.gsub(string.gsub(string.gsub(str, "[^%w _]", ""), " +", " "), " +$", ""), 1, 240)
@@ -3413,6 +3457,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 
 		if FilePath then
 		elseif OPTIONS.AvoidFileOverwrite and isfile then
+			TraceStage("FILE_EXISTS_CHECK_BEGIN")
 			local counter = 0
 			local temp = placename
 
@@ -3422,6 +3467,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 			end
 
 			placename = temp .. filetype
+			TraceStage("FILE_EXISTS_CHECK_END")
 		else
 			placename = placename .. filetype
 		end
@@ -3531,6 +3577,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		end
 	end
 
+	TraceStage("ROOT_AND_FILENAME_END")
 	local IsolateLocalPlayer = OPTIONS.IsolateLocalPlayer
 	local IsolateLocalPlayerCharacter = OPTIONS.IsolateLocalPlayerCharacter
 	local IsolatePlayers = OPTIONS.IsolatePlayers
@@ -3676,6 +3723,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		end
 	end
 
+	TraceStage("DECOMPILER_SETUP_BEGIN")
 	local getbytecode
 	if getscriptbytecode then
 		getbytecode = makeTimeoutHandler(OPTIONS.BytecodeTimeout, getscriptbytecode) -- ? Solara fix
@@ -3824,6 +3872,7 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 		end
 	end
 
+	TraceStage("DECOMPILER_SETUP_END")
 	local function GetLocalPlayer()
 		return service.Players.LocalPlayer
 			or service.Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
@@ -4236,8 +4285,14 @@ local function saveinstanceImpl(CustomOptions, CustomOptions2, session)
 			end
 		end
 	end
+	local firstHierarchy = true
+	local firstInstanceLog = true
 	local function save_hierarchy(hierarchy)
 		for _, instance in hierarchy do
+			if firstHierarchy then
+				firstHierarchy = false
+				TraceStage("FIRST_HIERARCHY_INSPECTION_BEGIN")
+			end
 			yieldIfDue()
 			if SerializedInstances[instance] then
 				continue
@@ -4326,7 +4381,15 @@ end
 			SerializedInstances[instance] = true
 			SerializedReferents[getRef(instance)] = true
 
-			if Crashlog then Crashlog("Saving Instance "..instance:GetFullName().." Class "..ClassName) end
+			if Crashlog then
+				if firstInstanceLog then TraceStage("FIRST_INSTANCE_FULLNAME_BEGIN") end
+				local fullName = instance:GetFullName()
+				if firstInstanceLog then
+					firstInstanceLog = false
+					TraceStage("FIRST_INSTANCE_LOG_BEGIN")
+				end
+				Crashlog("Saving Instance "..fullName.." Class "..ClassName)
+			end
 			if SaveAsAttributes then
 				SaveAttributes(instance, true, "__NotSaveable_")
 			end
@@ -4696,6 +4759,7 @@ end
 	end
 
 	local function save_game()
+		TraceStage("SAVE_GAME_BEGIN")
 		do
 			if IsModel then
 				--[[
@@ -4983,13 +5047,16 @@ end
 					totallen += math.ceil(chunk.size / SEGMENT_SIZE)
 				end
 
+				TraceStage("OUTPUT_HEADER_WRITE_BEGIN")
 				writefile(placename, header)
+				TraceStage("OUTPUT_HEADER_WRITE_END")
 				for _, chunk in chunks do
 					local chunk_len = chunk.size
 					local offset = 1
 
 					while offset <= chunk_len do
 						local savestr = string.sub(chunk.str, offset, offset + SEGMENT_SIZE - 1)
+						TraceStage("OUTPUT_APPEND_BEGIN bytes=" .. #savestr)
 
 						run_with_loading(
 							"Writing to File " .. math.round((currentlen + 1) / totallen * 100) .. "% (Depends on Exec)",
@@ -4999,6 +5066,7 @@ end
 							placename,
 							savestr
 						)
+						TraceStage("OUTPUT_APPEND_END")
 
 						currentlen += 1
 						offset += SEGMENT_SIZE
@@ -5021,6 +5089,7 @@ end
 		end
 	end
 
+	TraceStage("PLAYER_SUBSCRIPTIONS_BEGIN")
 	local Connections = {}
 	local anti_idle
 	local cleaned = false
@@ -5090,6 +5159,7 @@ end
 		end
 	end
 
+	TraceStage("PLAYER_SUBSCRIPTIONS_END")
 	if OPTIONS.KillAllScripts and not GLOBAL_ENV.USSI_KAS then
 		GLOBAL_ENV.USSI_KAS = true
 		-- * partial credits @centerepic
@@ -5144,6 +5214,7 @@ end
 		IgnoreList.Players = false
 	end
 
+	TraceStage("STATUS_UI_BEGIN")
 	if OPTIONS.ShowStatus then
 		do
 			local Exists = GLOBAL_ENV.USSI_statustext
@@ -5293,8 +5364,11 @@ end
 			end)
 		end
 
+		TraceStage("OPTION_SIDE_EFFECTS_END")
 		if not ClassList then
-			local ok, result = pcall(FetchAPI)
+			TraceStage("FETCH_API_BEGIN")
+			local ok, result = pcall(FetchAPI, TraceStage, OPTIONS.DisableReflectionService, OPTIONS.APICache)
+			TraceStage("FETCH_API_END ok=" .. tostring(ok))
 			if ok then
 				ClassList = result
 			else
@@ -5330,6 +5404,7 @@ end
 		end
 
 		Cleanup()
+		TraceStage(ok and "SAVE_COMPLETED" or "SAVE_FAILED")
 
 		elapse_t = os.clock() - elapse_t
 		local Log10 = math.log10(elapse_t)

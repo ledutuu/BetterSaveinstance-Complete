@@ -26,9 +26,13 @@ local function check(value, reason)
     checks += 1
 end
 local function exerciseApi(mode)
-    local calls = {capabilities = 0, classes = 0, mini = 0, warnings = 0}
+    local calls = {capabilities = 0, classes = 0, mini = 0, warnings = 0, reads = 0, writes = 0, stages = {}}
+    local disableReflectionService = mode == "disable-reflection"
+    local useAPICache = mode ~= "network-cache-disabled"
+    local traceStage = function(stage) table.insert(calls.stages, stage) end
     local FULL_VERSION, CLIENT_VERSION = "0.742.0.7421053", 742
     local readfile = function()
+        calls.reads += 1
         if mode == "cache" or mode == "empty-cache" or mode == "invalid-cache" then return "cached" end
         error("cache missing")
     end
@@ -56,10 +60,17 @@ local function exerciseApi(mode)
                 return {[FULL_VERSION] = {{Name = "Folder", Members = {}}}}
             end
             if value == "mini" then return {Classes = {{Name = "Folder", Members = {}}}} end
+            if value == "version" then return {version = FULL_VERSION, clientVersionUpload = "version-fixture"} end
+            if value == "full" then return {Classes = {{Name = "Folder", Members = {{Name = "Name", MemberType = "Property", Default = ""}}}}} end
             error("unexpected JSON fixture")
         end,
+        JSONEncode = function() return "encoded-cache" end,
     }}
     local game = {HttpGet = function(_, url)
+        if string.find(mode, "network-cache-", 1, true) then
+            if string.find(url, "clientsettingscdn.roblox.com", 1, true) then return "version" end
+            if string.find(url, "-Full-API-Dump.json", 1, true) then return "full" end
+        end
         if string.find(url, "Mini-API-Dump.json", 1, true) then
             calls.mini += 1
             if mode == "all-fail" then error("mini unavailable") end
@@ -68,7 +79,7 @@ local function exerciseApi(mode)
         error("network fixture unavailable")
     end}
     local warn = function() calls.warnings += 1 end
-    local writefile = nil
+    local writefile = function() calls.writes += 1 end
 '@
 $apiTail = @'
     return API_Dump, calls
@@ -81,6 +92,13 @@ dump, calls = exerciseApi("missing-capabilities")
 check(#dump == 1 and calls.classes == 0 and calls.mini == 1, "missing SecurityCapabilities must preserve Mini API fallback")
 dump, calls = exerciseApi("mini")
 check(#dump == 1 and calls.classes == 1 and calls.mini == 1, "Reflection failure must preserve Mini API fallback")
+dump, calls = exerciseApi("disable-reflection")
+check(#dump == 1 and calls.capabilities == 0 and calls.classes == 0 and calls.mini == 1, "Reflection optout skips native capability and service APIs")
+check(table.find(calls.stages, "API_FETCHER_3_BEGIN") and table.find(calls.stages, "API_FETCHER_4_END ok=true"), "API phases record skipped Reflection and successful fallback")
+dump, calls = exerciseApi("network-cache-disabled")
+check(#dump == 1 and calls.reads == 0 and calls.writes == 0 and calls.mini == 0, "APICache=false skips reads and writes while fetching full API")
+dump, calls = exerciseApi("network-cache-enabled")
+check(#dump == 1 and calls.reads == 1 and calls.writes == 1 and calls.mini == 0, "enabled API cache preserves full-dump cache write")
 for _, mode in {"empty-cache", "invalid-cache"} do
     dump, calls = exerciseApi(mode)
     check(#dump == 1 and calls.classes == 1 and calls.mini == 1, "malformed cached API must preserve fallback on " .. mode)
@@ -89,13 +107,15 @@ local ok, err = pcall(exerciseApi, "all-fail")
 check(not ok and string.find(err, "No usable Roblox API dump", 1, true), "all failed API sources report explicit initialization error")
 local function exerciseContent(mode)
     local built, lookedUp = 0, 0
+    local disableReflectionService = mode == "disabled"
+    local traceStage = function() end
     local SecurityCapabilities = mode ~= "missing-capabilities" and {new = function()
         built += 1
         return {}
     end} or nil
     local Enum = {SecurityCapability = {GetEnumItems = function() return {} end}}
     local service = setmetatable({}, {__index = function(_, key)
-        if mode == "missing-service" then error("Reflection service lookup unavailable") end
+        if mode == "missing-service" or mode == "disabled" then error("Reflection service lookup unavailable") end
         return {GetPropertiesOfClass = function(_, name, filter)
             lookedUp += 1
             check(name == "MeshPart" and filter.ExcludeDisplay, "Content metadata uses Reflection filter")
@@ -118,6 +138,7 @@ end
 exerciseContent("ok")
 exerciseContent("missing-capabilities")
 exerciseContent("missing-service")
+exerciseContent("disabled")
 local function exerciseLifecycle(mode)
     local cancelled, disconnected = {}, 0
     local renderingRestored, saveCalls = 0, 0
@@ -139,6 +160,7 @@ local function exerciseLifecycle(mode)
     local placename = "fixture.rbxlx"
     local GLOBAL_ENV = {[placename] = true}
     local session = {}
+    local TraceStage = function() end
     local Color3 = {new = function(value) return value end}
     local service = {RunService = {Set3dRenderingEnabled = function(_, enabled)
         if enabled then renderingRestored += 1 end
